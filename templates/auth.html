@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connexion - Jeu de Questions</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='auth.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="auth-container">
+            <!-- Formulaire de connexion -->
+            <div id="login-form" class="auth-form active">
+                <div class="card">
+                    <h1>🎮 Jeu de Questions</h1>
+                    <h2>Connexion</h2>
+                    
+                    <div id="login-error" class="error-message"></div>
+                    
+                    <form onsubmit="handleLogin(event)">
+                        <div class="form-group">
+                            <label for="login-username">Nom d'utilisateur</label>
+                            <input type="text" id="login-username" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="login-password">Mot de passe</label>
+                            <input type="password" id="login-password" required>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary btn-large">Se connecter</button>
+                    </form>
+                    
+                    <p class="auth-switch">
+                        Pas encore de compte ? 
+                        <a href="#" onclick="showRegister(); return false;">S'inscrire</a>
+                    </p>
+                </div>
+            </div>
+            
+            <!-- Formulaire d'inscription -->
+            <div id="register-form" class="auth-form">
+                <div class="card">
+                    <h1>🎮 Jeu de Questions</h1>
+                    <h2>Inscription</h2>
+                    
+                    <div id="register-error" class="error-message"></div>
+                    
+                    <form onsubmit="handleRegister(event)">
+                        <div class="form-group">
+                            <label for="register-username">Nom d'utilisateur</label>
+                            <input type="text" id="register-username" required minlength="3">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="register-password">Mot de passe (min. 6 caractères)</label>
+                            <input type="password" id="register-password" required minlength="6">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="register-password-confirm">Confirmer le mot de passe</label>
+                            <input type="password" id="register-password-confirm" required minlength="6">
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary btn-large">S'inscrire</button>
+                    </form>
+                    
+                    <p class="auth-switch">
+                        Déjà un compte ? 
+                        <a href="#" onclick="showLogin(); return false;">Se connecter</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="{{ url_for('static', filename='auth.js') }}"></script>
+</body>
+</html>

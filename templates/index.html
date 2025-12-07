@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jeu de Questions - Thermodynamique</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <!-- Écran d'accueil -->
+        <div id="home-screen" class="screen active">
+            <div class="card">
+                <div class="user-info">
+                    <span id="username-display">Chargement...</span>
+                    <button class="btn btn-secondary btn-small" onclick="handleLogout()">Déconnexion</button>
+                </div>
+                <h1>🎮 Jeu de Questions</h1>
+                <h2>Choisissez votre matière</h2>
+                
+                <div class="matiere-selector">
+                    <!-- Les matières seront chargées dynamiquement par JavaScript -->
+                </div>
+                
+                <div class="rules">
+                    <h3>📖 Règles du jeu :</h3>
+                    <ul>
+                        <li>Une réponse vous sera proposée pour chaque question</li>
+                        <li>Si vous pensez que c'est la bonne réponse, cliquez sur <strong>"OUI"</strong> (+10 points ✅)</li>
+                        <li>Si vous pensez que ce n'est pas la bonne, cliquez sur <strong>"NON"</strong></li>
+                        <li>⚠️ Attention : si vous dites "OUI" à une mauvaise réponse, vous perdez 5 points!</li>
+                        <li>💡 Si vous refusez toutes les réponses, la bonne réponse vous sera montrée</li>
+                    </ul>
+                </div>
+
+                <button class="btn btn-primary btn-large" onclick="startGame(currentMatiere)">Commencer le jeu</button>
+                <button id="resume-btn" class="btn btn-warning btn-large" onclick="resumeGame()" style="display: none;">📂 Reprendre la partie</button>
+                <button class="btn btn-secondary btn-large" onclick="showScores()">Voir les scores</button>
+            </div>
+        </div>
+
+        <!-- Écran de jeu -->
+        <div id="game-screen" class="screen">
+            <div class="header">
+                <div class="score-display">
+                    <span class="label">Score:</span>
+                    <span id="score" class="score-value">0</span>
+                </div>
+                <div class="progress">
+                    <span id="question-counter">Question 1/35</span>
+                </div>
+            </div>
+
+            <div class="card question-card">
+                <div class="question-header">
+                    <h3>Question</h3>
+                </div>
+                <div id="question-text" class="question-text"></div>
+                
+                <div class="answer-section">
+                    <div class="answer-label">Réponse proposée:</div>
+                    <div id="answer-text" class="answer-text"></div>
+                    <div id="remaining-answers" class="remaining-info"></div>
+                </div>
+
+                <div id="message" class="message"></div>
+
+                <div id="buttons" class="button-group">
+                    <button class="btn btn-success" onclick="submitAnswer(true)">
+                        ✓ OUI
+                    </button>
+                    <button class="btn btn-danger" onclick="submitAnswer(false)">
+                        ✗ NON
+                    </button>
+                </div>
+
+                <button id="next-btn" class="btn btn-primary" onclick="nextQuestion()" style="display: none;">
+                    Suivant →
+                </button>
+
+                <div class="game-actions">
+                    <button class="btn btn-secondary" onclick="saveAndQuit()">💾 Sauvegarder et quitter</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Écran de fin -->
+        <div id="end-screen" class="screen">
+            <div class="card end-card">
+                <h1>🏁 Fin du jeu!</h1>
+                <div class="final-score">
+                    <div class="score-label">Score final:</div>
+                    <div id="final-score" class="score-big">0</div>
+                    <div id="total-questions" class="total-questions"></div>
+                </div>
+                <div id="final-message" class="final-message"></div>
+                <div id="revision-section" style="display: none;">
+                    <p class="revision-message">📚 Vous avez <span id="revision-count">0</span> question(s) à réviser!</p>
+                    <button class="btn btn-warning btn-large" onclick="startRevision()">Réviser les questions</button>
+                </div>
+                <button class="btn btn-primary btn-large" onclick="restartGame()">Rejouer</button>
+                <button class="btn btn-secondary btn-large" onclick="showScores()">Voir les scores</button>
+            </div>
+        </div>
+
+        <!-- Écran des scores -->
+        <div id="scores-screen" class="screen">
+            <div class="card">
+                <h1>🏆 Classement</h1>
+                <div id="scores-list"></div>
+                <button class="btn btn-primary btn-large" onclick="restartGame()">Retour</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
