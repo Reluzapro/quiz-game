@@ -2,6 +2,8 @@ let totalQuestions = 0;
 let currentMatiere = 'thermo'; // Matière par défaut
 let timerInterval = null;
 let timerEnabled = false;
+let currentScoreTab = 'single'; // Type de score affiché: 'single' ou 'total'
+let userHintsCount = 0; // Nombre d'indices de l'utilisateur
 
 // Vérifier l'authentification et les sauvegardes au chargement
 window.addEventListener('DOMContentLoaded', () => {
@@ -321,6 +323,15 @@ async function loadQuestion() {
         document.getElementById('buttons').style.display = 'flex';
         document.getElementById('next-btn').style.display = 'none';
         
+        // Réinitialiser l'affichage de l'indice
+        const hintResult = document.getElementById('hint-result');
+        if (hintResult) {
+            hintResult.classList.remove('show');
+        }
+        
+        // Charger le nombre d'indices et afficher le bouton si nécessaire
+        await loadHintsCount();
+        
     } catch (error) {
         console.error('Erreur:', error);
         alert('Erreur lors du chargement de la question');
@@ -453,7 +464,24 @@ async function startRevision() {
     }
 }
 
-async function showScores() {
+function showScoreTab(tab) {
+    currentScoreTab = tab;
+    
+    // Mettre à jour l'apparence des onglets
+    document.querySelectorAll('.score-tab').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    event.target.classList.add('active');
+    
+    // Charger les scores correspondants
+    if (tab === 'single') {
+        loadSingleScores();
+    } else {
+        loadTotalScores();
+    }
+}
+
+async function loadSingleScores() {
     try {
         const response = await fetch('/api/scores', {
             method: 'POST',
@@ -471,43 +499,97 @@ async function showScores() {
             scoresTitle.textContent = `🏆 Classement - ${data.matiere_nom}`;
         }
         
-        const scoresList = document.getElementById('scores-list');
-        
-        if (scores.length === 0) {
-            scoresList.innerHTML = '<p style="text-align: center; color: #6c757d;">Aucun score pour le moment</p>';
-        } else {
-            let html = '';
-            scores.forEach((score, index) => {
-                let rankClass = '';
-                let medal = '';
-                if (index === 0) {
-                    rankClass = 'first';
-                    medal = '🥇 ';
-                } else if (index === 1) {
-                    rankClass = 'second';
-                    medal = '🥈 ';
-                } else if (index === 2) {
-                    rankClass = 'third';
-                    medal = '🥉 ';
-                }
-                
-                html += `
-                    <div class="score-item ${rankClass}">
-                        <div>
-                            <div class="score-username">${medal}${score.username}</div>
-                            <div class="score-details">${score.questions_correctes}/${score.total_questions} correctes</div>
-                        </div>
-                        <div class="score-value">${score.score} pts</div>
-                    </div>
-                `;
-            });
-            scoresList.innerHTML = html;
-        }
-        
-        showScreen('scores-screen');
+        displayScores(scores, 'score');
     } catch (error) {
         console.error('Erreur:', error);
         alert('Erreur lors du chargement des scores');
+    }
+}
+
+async function loadTotalScores() {
+    try {
+        const response = await fetch('/api/scores/total', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        const data = await response.json();
+        const scores = data.scores || [];
+        
+        // Mettre à jour le titre
+        const scoresTitle = document.querySelector('#scores-screen h1');
+        if (scoresTitle) {
+            scoresTitle.textContent = `🏆 Classement Général`;
+        }
+        
+        // Afficher le score total de l'utilisateur actuel
+        displayScores(scores, 'total_score', data.current_user_score);
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('Erreur lors du chargement des scores totaux');
+    }
+}
+
+function displayScores(scores, scoreField, currentUserScore = null) {
+    const scoresList = document.getElementById('scores-list');
+    
+    if (scores.length === 0) {
+        scoresList.innerHTML = '<p style="text-align: center; color: #6c757d;">Aucun score pour le moment</p>';
+    } else {
+        let html = '';
+        
+        // Afficher le score de l'utilisateur actuel si on est dans l'onglet total
+        if (currentUserScore !== null && scoreField === 'total_score') {
+            html += `
+                <div class="score-item" style="background: #e7f3ff; border-left-color: #007bff; margin-bottom: 20px;">
+                    <div>
+                        <div class="score-username">👤 Votre score total</div>
+                    </div>
+                    <div class="score-value">${currentUserScore} pts</div>
+                </div>
+            `;
+        }
+        
+        scores.forEach((score, index) => {
+            let rankClass = '';
+            let medal = '';
+            if (index === 0) {
+                rankClass = 'first';
+                medal = '🥇 ';
+            } else if (index === 1) {
+                rankClass = 'second';
+                medal = '🥈 ';
+            } else if (index === 2) {
+                rankClass = 'third';
+                medal = '🥉 ';
+            }
+            
+            const scoreValue = scoreField === 'total_score' ? score.total_score : score.score;
+            const extraInfo = scoreField === 'total_score' ? `<div class="score-details">${score.games_played} parties jouées</div>` : '';
+            
+            html += `
+                <div class="score-item ${rankClass}">
+                    <div>
+                        <div class="score-username">${medal}${score.username}</div>
+                        ${extraInfo}
+                    </div>
+                    <div class="score-value">${scoreValue} pts</div>
+                </div>
+            `;
+        });
+        scoresList.innerHTML = html;
+    }
+}
+
+async function showScores() {
+    // Afficher l'écran et charger les scores selon l'onglet actif
+    showScreen('scores-screen');
+    
+    if (currentScoreTab === 'single') {
+        await loadSingleScores();
+    } else {
+        await loadTotalScores();
     }
 }
 
@@ -581,4 +663,967 @@ function showScreen(screenId) {
     
     // Afficher l'écran demandé
     document.getElementById(screenId).classList.add('active');
+}
+
+// ==================== MODE BATTLE ====================
+
+let socket = null;
+let currentBattle = null;
+let battleQuestions = [];
+let battleCurrentIndex = 0;
+let battleReponses = [];
+let battleTimer = null;
+
+function initSocket() {
+    if (!socket) {
+        socket = io();
+        
+        socket.on('connect', () => {
+            console.log('Connecté au serveur');
+        });
+        
+        socket.on('player_joined', (data) => {
+            document.getElementById('player2-name').textContent = data.player2_name;
+            document.getElementById('player2-status').textContent = '⏳';
+            document.getElementById('ready-btn').disabled = false;
+        });
+        
+        socket.on('player_ready', (data) => {
+            if (data.both_ready) {
+                // Les deux sont prêts, attendre le démarrage
+            }
+        });
+        
+        socket.on('battle_start', (data) => {
+            startBattleGame();
+        });
+        
+        socket.on('scores_update', (data) => {
+            document.getElementById('battle-player1-score').textContent = data.player1_score;
+            document.getElementById('battle-player2-score').textContent = data.player2_score;
+        });
+        
+        socket.on('battle_finished', (data) => {
+            showBattleResults(data);
+        });
+    }
+}
+
+function showBattleMenu() {
+    initSocket();
+    showScreen('battle-menu-screen');
+}
+
+async function createBattle() {
+    try {
+        const response = await fetch('/api/battle/create', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ matiere: currentMatiere })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            currentBattle = {
+                id: data.battle_id,
+                code: data.code
+            };
+            currentBattleId = data.battle_id;
+            
+            document.getElementById('battle-code-display').textContent = data.code;
+            document.getElementById('player1-name').textContent = document.getElementById('username-display').textContent.replace('👤 ', '');
+            
+            socket.emit('join_battle', { battle_id: data.battle_id });
+            showScreen('battle-waiting-screen');
+        }
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('Erreur lors de la création de la battle');
+    }
+}
+
+async function joinBattle() {
+    const code = document.getElementById('battle-code-input').value.trim().toUpperCase();
+    
+    if (!code || code.length !== 6) {
+        alert('Veuillez entrer un code valide à 6 caractères');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/battle/join/${code}`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.error) {
+            alert(data.error);
+            return;
+        }
+        
+        if (data.success) {
+            currentBattle = {
+                id: data.battle_id,
+                code: code
+            };
+            currentBattleId = data.battle_id;
+            
+            socket.emit('join_battle', { battle_id: data.battle_id });
+            
+            // Charger les infos de la battle
+            await loadBattleInfo(data.battle_id);
+            showScreen('battle-waiting-screen');
+        }
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('Erreur lors de la connexion à la battle');
+    }
+}
+
+async function loadBattleInfo(battleId) {
+    try {
+        const response = await fetch(`/api/battle/${battleId}`);
+        const data = await response.json();
+        
+        document.getElementById('battle-code-display').textContent = data.code;
+        document.getElementById('player1-name').textContent = data.player1_name;
+        if (data.player2_name) {
+            document.getElementById('player2-name').textContent = data.player2_name;
+            document.getElementById('player2-status').textContent = '⏳';
+            document.getElementById('ready-btn').disabled = false;
+        }
+    } catch (error) {
+        console.error('Erreur:', error);
+    }
+}
+
+function markReady() {
+    socket.emit('ready', { battle_id: currentBattle.id });
+    document.getElementById('ready-btn').disabled = true;
+    document.getElementById('ready-btn').textContent = '✅ Prêt !';
+}
+
+function cancelBattle() {
+    currentBattle = null;
+    restartGame();
+}
+
+async function startBattleGame() {
+    // Charger les infos de la battle
+    const response = await fetch(`/api/battle/${currentBattle.id}`);
+    const data = await response.json();
+    
+    document.getElementById('battle-player1-name').textContent = data.player1_name;
+    document.getElementById('battle-player2-name').textContent = data.player2_name;
+    document.getElementById('battle-player1-score').textContent = data.player1_score;
+    document.getElementById('battle-player2-score').textContent = data.player2_score;
+    
+    // Charger les questions
+    const gameResponse = await fetch('/api/start', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+            matiere: currentMatiere,
+            timer_minutes: 5
+        })
+    });
+    
+    const gameData = await gameResponse.json();
+    totalQuestions = gameData.total_questions;
+    
+    showScreen('battle-game-screen');
+    startBattleTimer();
+    loadBattleQuestion();
+}
+
+function startBattleTimer() {
+    const startTime = Date.now();
+    const duration = 5 * 60 * 1000; // 5 minutes
+    
+    battleTimer = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const remaining = Math.max(0, duration - elapsed);
+        
+        const minutes = Math.floor(remaining / 60000);
+        const seconds = Math.floor((remaining % 60000) / 1000);
+        
+        const timerDisplay = document.getElementById('battle-timer-display');
+        timerDisplay.textContent = `⏱️ ${minutes}:${seconds.toString().padStart(2, '0')}`;
+        
+        if (remaining < 60000) {
+            timerDisplay.style.color = '#e74c3c';
+        }
+        
+        if (remaining === 0) {
+            clearInterval(battleTimer);
+            socket.emit('battle_end', { battle_id: currentBattle.id });
+        }
+    }, 1000);
+}
+
+async function loadBattleQuestion() {
+    try {
+        const response = await fetch('/api/question');
+        const data = await response.json();
+        
+        if (data.finished) {
+            clearInterval(battleTimer);
+            socket.emit('battle_end', { battle_id: currentBattle.id });
+            return;
+        }
+        
+        document.getElementById('battle-question-text').textContent = data.question;
+        document.getElementById('battle-answer-text').textContent = data.reponse_proposee;
+        
+        const remainingDiv = document.getElementById('battle-remaining-answers');
+        if (data.reponses_restantes > 1) {
+            remainingDiv.textContent = `(${data.reponses_restantes} réponses restantes)`;
+        } else {
+            remainingDiv.textContent = '(Dernière réponse!)';
+        }
+        
+        document.getElementById('battle-message').className = 'message';
+        document.getElementById('battle-message').textContent = '';
+        document.getElementById('battle-buttons').style.display = 'flex';
+        document.getElementById('battle-next-btn').style.display = 'none';
+        
+    } catch (error) {
+        console.error('Erreur:', error);
+    }
+}
+
+async function submitBattleAnswer(answer) {
+    try {
+        const response = await fetch('/api/answer', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ answer: answer })
+        });
+        
+        const data = await response.json();
+        
+        const messageDiv = document.getElementById('battle-message');
+        messageDiv.textContent = data.message;
+        messageDiv.className = 'message show';
+        
+        if (data.correct) {
+            messageDiv.classList.add('success');
+        } else if (data.points < 0) {
+            messageDiv.classList.add('error');
+        } else {
+            messageDiv.classList.add('info');
+        }
+        
+        // Envoyer via SocketIO
+        socket.emit('answer', {
+            battle_id: currentBattle.id,
+            is_correct: data.correct,
+            points: data.points
+        });
+        
+        if (data.next_question) {
+            document.getElementById('battle-buttons').style.display = 'none';
+            document.getElementById('battle-next-btn').style.display = 'block';
+        } else {
+            setTimeout(() => {
+                loadBattleQuestion();
+            }, 1500);
+        }
+        
+    } catch (error) {
+        console.error('Erreur:', error);
+    }
+}
+
+function nextBattleQuestion() {
+    loadBattleQuestion();
+}
+
+function showBattleResults(data) {
+    clearInterval(battleTimer);
+    
+    document.getElementById('result-player1-name').textContent = data.player1_name;
+    document.getElementById('result-player2-name').textContent = data.player2_name;
+    document.getElementById('result-player1-score').textContent = `${data.player1_score} pts`;
+    document.getElementById('result-player2-score').textContent = `${data.player2_score} pts`;
+    
+    const winnerDiv = document.getElementById('winner-announcement');
+    if (data.winner === 'Égalité') {
+        winnerDiv.textContent = '🤝 Égalité !';
+        winnerDiv.style.color = '#f39c12';
+    } else {
+        winnerDiv.textContent = `🏆 Gagnant : ${data.winner}`;
+        winnerDiv.style.color = '#2ecc71';
+    }
+    
+    showScreen('battle-result-screen');
+}
+
+// ==================== INDICES ====================
+
+async function loadHintsCount() {
+    try {
+        const response = await fetch('/api/user/hints');
+        const data = await response.json();
+        userHintsCount = data.hints_count;
+        
+        // Mettre à jour l'affichage
+        const hintsDisplay = document.getElementById('user-hints-display');
+        if (hintsDisplay) {
+            hintsDisplay.textContent = userHintsCount;
+        }
+        
+        const hintsCountSpan = document.getElementById('hints-count');
+        if (hintsCountSpan) {
+            hintsCountSpan.textContent = userHintsCount;
+        }
+        
+        // Afficher/masquer le bouton indice dans le jeu
+        const hintButton = document.getElementById('hint-button');
+        if (hintButton) {
+            if (userHintsCount > 0) {
+                hintButton.style.display = 'block';
+                hintButton.disabled = false;
+            } else {
+                hintButton.style.display = 'none';
+            }
+        }
+    } catch (error) {
+        console.error('Erreur lors du chargement des indices:', error);
+    }
+}
+
+async function buyHints(quantity) {
+    const userPoints = parseInt(document.getElementById('user-points-display').textContent);
+    const price = quantity * 25;
+    
+    if (userPoints < price) {
+        alert(`Pas assez de points ! Il vous faut ${price} points (vous avez ${userPoints} pts)`);
+        return;
+    }
+    
+    if (!confirm(`Voulez-vous acheter ${quantity} indice${quantity > 1 ? 's' : ''} pour ${price} points ?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/shop/buy_hints', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ quantity: quantity })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            alert(data.message);
+            // Recharger la boutique
+            showShop();
+        } else {
+            alert(data.error || 'Erreur lors de l\'achat');
+        }
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('Erreur lors de l\'achat des indices');
+    }
+}
+
+async function useHint() {
+    if (userHintsCount <= 0) {
+        alert('Vous n\'avez plus d\'indices ! Achetez-en dans la boutique.');
+        return;
+    }
+    
+    if (!confirm('Utiliser un indice pour révéler si cette réponse est bonne ? (1 indice)')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/game/use_hint', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            // Mettre à jour le nombre d'indices
+            userHintsCount = data.hints_remaining;
+            document.getElementById('hints-count').textContent = userHintsCount;
+            
+            // Afficher le résultat de l'indice
+            const hintResult = document.getElementById('hint-result');
+            hintResult.textContent = data.message;
+            hintResult.className = 'hint-result show ' + (data.is_correct ? 'correct' : 'incorrect');
+            
+            // Masquer le bouton si plus d'indices
+            if (userHintsCount <= 0) {
+                document.getElementById('hint-button').style.display = 'none';
+            }
+            
+            // Cacher le résultat après 3 secondes
+            setTimeout(() => {
+                hintResult.classList.remove('show');
+            }, 5000);
+        } else {
+            alert(data.error || 'Erreur lors de l\'utilisation de l\'indice');
+        }
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('Erreur lors de l\'utilisation de l\'indice');
+    }
+}
+
+// ==================== BOUTIQUE ====================
+
+async function showShop() {
+    try {
+        const response = await fetch('/api/shop/themes', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        // Afficher les points de l'utilisateur
+        document.getElementById('user-points-display').textContent = data.user_score;
+        
+        // Charger et afficher le nombre d'indices
+        await loadHintsCount();
+        
+        // Afficher les thèmes
+        const themesGrid = document.getElementById('themes-grid');
+        themesGrid.innerHTML = '';
+        
+        data.themes.forEach(theme => {
+            const themeCard = document.createElement('div');
+            themeCard.className = 'theme-card';
+            
+            if (theme.owned) {
+                themeCard.classList.add('owned');
+            }
+            if (theme.equipped) {
+                themeCard.classList.add('equipped');
+            }
+            
+            let badge = '';
+            if (theme.equipped) {
+                badge = '<span class="theme-badge equipped">✓ Équipé</span>';
+            } else if (theme.owned) {
+                badge = '<span class="theme-badge owned">✓ Possédé</span>';
+            }
+            
+            let actionButtons = '';
+            if (theme.equipped) {
+                actionButtons = '<button class="btn btn-secondary" disabled>Actuellement équipé</button>';
+            } else if (theme.owned) {
+                actionButtons = `<button class="btn btn-primary" onclick="equipTheme('${theme.id}')">Équiper</button>`;
+            } else {
+                actionButtons = `<button class="btn btn-success" onclick="buyTheme('${theme.id}', ${theme.prix})">Acheter (${theme.prix} pts)</button>`;
+            }
+            
+            themeCard.innerHTML = `
+                <div class="theme-preview" style="background: ${theme.gradient};">
+                    ${badge}
+                </div>
+                <div class="theme-name">${theme.nom}</div>
+                <div class="theme-description">${theme.description}</div>
+                <div class="theme-actions">
+                    ${actionButtons}
+                </div>
+            `;
+            
+            themesGrid.appendChild(themeCard);
+        });
+        
+        showScreen('shop-screen');
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('Erreur lors du chargement de la boutique');
+    }
+}
+
+async function buyTheme(themeId, prix) {
+    // Vérifier si l'utilisateur a assez de points
+    const userPoints = parseInt(document.getElementById('user-points-display').textContent);
+    if (userPoints < prix) {
+        alert(`Pas assez de points ! Il vous faut ${prix} points (vous avez ${userPoints} pts)`);
+        return;
+    }
+    
+    if (!confirm(`Voulez-vous acheter ce thème pour ${prix} points ?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/shop/buy', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ theme_id: themeId })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            alert(data.message);
+            // Recharger la boutique
+            showShop();
+        } else {
+            alert(data.error || 'Erreur lors de l\'achat');
+        }
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('Erreur lors de l\'achat du thème');
+    }
+}
+
+async function equipTheme(themeId) {
+    try {
+        const response = await fetch('/api/shop/equip', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ theme_id: themeId })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            // Appliquer le nouveau gradient
+            document.body.style.background = data.gradient;
+            alert(data.message);
+            // Recharger la boutique
+            showShop();
+        } else {
+            alert(data.error || 'Erreur lors de l\'équipement');
+        }
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('Erreur lors de l\'équipement du thème');
+    }
+}
+
+// Charger le thème de l'utilisateur au démarrage
+async function loadUserTheme() {
+    try {
+        const response = await fetch('/api/shop/themes', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        // Trouver le thème équipé
+        const equippedTheme = data.themes.find(t => t.equipped);
+        if (equippedTheme) {
+            document.body.style.background = equippedTheme.gradient;
+        }
+    } catch (error) {
+        console.error('Erreur lors du chargement du thème:', error);
+    }
+}
+
+// Charger le thème au démarrage de la page
+window.addEventListener('DOMContentLoaded', () => {
+    loadUserTheme();
+    loadUserButtonColor();
+});
+
+// ==================== COULEURS DE BOUTONS ====================
+
+async function loadUserButtonColor() {
+    try {
+        const response = await fetch('/api/user/button_color', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        if (data.couleur) {
+            applyButtonColor(data.couleur, data.couleur_hover);
+        }
+    } catch (error) {
+        console.error('Erreur lors du chargement de la couleur des boutons:', error);
+    }
+}
+
+function applyButtonColor(couleur, couleurHover) {
+    // Créer ou mettre à jour le style personnalisé pour les boutons
+    let styleElement = document.getElementById('custom-button-style');
+    if (!styleElement) {
+        styleElement = document.createElement('style');
+        styleElement.id = 'custom-button-style';
+        document.head.appendChild(styleElement);
+    }
+    
+    styleElement.textContent = `
+        .btn-success {
+            background-color: ${couleur} !important;
+        }
+        .btn-success:hover {
+            background-color: ${couleurHover} !important;
+        }
+    `;
+}
+
+async function loadButtonColors() {
+    try {
+        const response = await fetch('/api/shop/button_colors', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        const colorsGrid = document.getElementById('button-colors-grid');
+        colorsGrid.innerHTML = '';
+        
+        data.colors.forEach(color => {
+            const colorCard = document.createElement('div');
+            colorCard.className = 'theme-card';
+            
+            if (color.owned) {
+                colorCard.classList.add('owned');
+            }
+            if (color.equipped) {
+                colorCard.classList.add('equipped');
+            }
+            
+            let badge = '';
+            if (color.equipped) {
+                badge = '<span class="theme-badge equipped">✓ Équipé</span>';
+            } else if (color.owned) {
+                badge = '<span class="theme-badge owned">✓ Possédé</span>';
+            }
+            
+            let actionButtons = '';
+            if (color.equipped) {
+                actionButtons = '<button class="btn btn-secondary" disabled>Actuellement équipé</button>';
+            } else if (color.owned) {
+                actionButtons = `<button class="btn btn-primary" onclick="equipButtonColor('${color.id}')">Équiper</button>`;
+            } else {
+                actionButtons = `<button class="btn btn-success" onclick="buyButtonColor('${color.id}', ${color.prix})">Acheter (${color.prix} pts)</button>`;
+            }
+            
+            colorCard.innerHTML = `
+                <div class="theme-preview" style="background: ${color.couleur};">
+                    ${badge}
+                </div>
+                <div class="theme-name">${color.nom}</div>
+                <div class="theme-description">${color.description}</div>
+                <div class="theme-actions">
+                    ${actionButtons}
+                </div>
+            `;
+            
+            colorsGrid.appendChild(colorCard);
+        });
+    } catch (error) {
+        console.error('Erreur:', error);
+    }
+}
+
+async function buyButtonColor(colorId, prix) {
+    const userPoints = parseInt(document.getElementById('user-points-display').textContent);
+    if (userPoints < prix) {
+        alert(`Pas assez de points ! Il vous faut ${prix} points (vous avez ${userPoints} pts)`);
+        return;
+    }
+    
+    if (!confirm(`Voulez-vous acheter cette couleur pour ${prix} points ?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/shop/buy_button_color', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ color_id: colorId })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            alert(data.message);
+            showShop();
+        } else {
+            alert(data.error || 'Erreur lors de l\'achat');
+        }
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('Erreur lors de l\'achat de la couleur');
+    }
+}
+
+async function equipButtonColor(colorId) {
+    try {
+        const response = await fetch('/api/shop/equip_button_color', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ color_id: colorId })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            applyButtonColor(data.couleur, data.couleur_hover);
+            alert(data.message);
+            showShop();
+        } else {
+            alert(data.error || 'Erreur lors de l\'équipement');
+        }
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('Erreur lors de l\'équipement de la couleur');
+    }
+}
+
+// ==================== ÉMOTES ====================
+
+async function loadEmotes() {
+    try {
+        const response = await fetch('/api/shop/emotes', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        const emotesGrid = document.getElementById('emotes-grid');
+        emotesGrid.innerHTML = '';
+        
+        data.emotes.forEach(emote => {
+            const emoteCard = document.createElement('div');
+            emoteCard.className = 'emote-card';
+            
+            if (emote.owned) {
+                emoteCard.classList.add('owned');
+            }
+            
+            let badge = emote.owned ? '<span class="theme-badge owned">✓ Possédé</span>' : '';
+            
+            let actionButton = '';
+            if (emote.owned) {
+                actionButton = '<button class="btn btn-secondary" disabled>Possédé</button>';
+            } else {
+                actionButton = `<button class="btn btn-success" onclick="buyEmote('${emote.id}', ${emote.prix})">Acheter (${emote.prix} pts)</button>`;
+            }
+            
+            emoteCard.innerHTML = `
+                <div class="emote-preview">
+                    <span class="emote-emoji">${emote.emoji}</span>
+                    ${badge}
+                </div>
+                <div class="emote-name">${emote.nom}</div>
+                <div class="emote-description">${emote.description}</div>
+                <div class="emote-actions">
+                    ${actionButton}
+                </div>
+            `;
+            
+            emotesGrid.appendChild(emoteCard);
+        });
+    } catch (error) {
+        console.error('Erreur:', error);
+    }
+}
+
+async function buyEmote(emoteId, prix) {
+    const userPoints = parseInt(document.getElementById('user-points-display').textContent);
+    if (userPoints < prix) {
+        alert(`Pas assez de points ! Il vous faut ${prix} points (vous avez ${userPoints} pts)`);
+        return;
+    }
+    
+    if (!confirm(`Voulez-vous acheter cette émote pour ${prix} points ?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/shop/buy_emote', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ emote_id: emoteId })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            alert(data.message);
+            showShop();
+        } else {
+            alert(data.error || 'Erreur lors de l\'achat');
+        }
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('Erreur lors de l\'achat de l\'émote');
+    }
+}
+
+// Mettre à jour la fonction showShop pour charger toutes les sections
+const originalShowShop = showShop;
+showShop = async function() {
+    await originalShowShop();
+    await loadButtonColors();
+    await loadEmotes();
+};
+
+// ==================== ÉMOTES EN BATTLE ====================
+
+let currentBattleId = null;
+
+function toggleEmotePicker() {
+    const picker = document.getElementById('emote-picker');
+    if (picker.style.display === 'none') {
+        loadBattleEmotes();
+        picker.style.display = 'grid';
+    } else {
+        picker.style.display = 'none';
+    }
+}
+
+async function loadBattleEmotes() {
+    try {
+        const response = await fetch('/api/shop/emotes');
+        const data = await response.json();
+        
+        const picker = document.getElementById('emote-picker');
+        picker.innerHTML = '';
+        
+        const ownedEmotes = data.emotes.filter(e => e.owned);
+        
+        if (ownedEmotes.length === 0) {
+            picker.innerHTML = '<p style="grid-column: 1/-1; text-align: center;">Aucune émote possédée. Achetez-en dans la boutique !</p>';
+            return;
+        }
+        
+        ownedEmotes.forEach(emote => {
+            const emoteBtn = document.createElement('button');
+            emoteBtn.className = 'emote-btn';
+            emoteBtn.textContent = emote.emoji;
+            emoteBtn.title = emote.nom;
+            emoteBtn.onclick = () => sendEmote(emote.id);
+            picker.appendChild(emoteBtn);
+        });
+    } catch (error) {
+        console.error('Erreur lors du chargement des émotes:', error);
+    }
+}
+
+function sendEmote(emoteId) {
+    if (currentBattleId && socket) {
+        socket.emit('send_emote', {
+            battle_id: currentBattleId,
+            emote_id: emoteId
+        });
+        // Fermer le picker après l'envoi
+        document.getElementById('emote-picker').style.display = 'none';
+    }
+}
+
+function displayReceivedEmote(data) {
+    const display = document.getElementById('emote-display');
+    const emoteElement = document.createElement('div');
+    emoteElement.className = 'received-emote';
+    emoteElement.innerHTML = `
+        <span class="emote-sender">${data.sender}</span>
+        <span class="emote-big">${data.emoji}</span>
+    `;
+    display.appendChild(emoteElement);
+    
+    // Supprimer après 3 secondes
+    setTimeout(() => {
+        emoteElement.remove();
+    }, 3000);
+}
+
+// Ajouter le listener Socket.IO pour recevoir les émotes
+if (typeof socket !== 'undefined') {
+    socket.on('emote_received', displayReceivedEmote);
+}
+
+// ==================== PANNEAU DÉVELOPPEUR ====================
+
+function showDevPanel() {
+    const password = prompt('🔧 Mode Développeur\nMot de passe :');
+    
+    if (password === null) return; // Annulé
+    
+    if (password !== '          ') {
+        alert('❌ Mot de passe incorrect');
+        return;
+    }
+    
+    const points = prompt('💰 Combien de points voulez-vous ajouter ?\n(Max: 10000)');
+    
+    if (points === null) return; // Annulé
+    
+    addDevPoints(parseInt(points));
+}
+
+async function addDevPoints(points) {
+    if (isNaN(points) || points < 0 || points > 10000) {
+        alert('❌ Nombre de points invalide (0-10000)');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/dev/add_points', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ 
+                password: '          ',
+                points: points 
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            alert(`✅ ${data.message}\nNouveau score total : ${data.new_score} pts`);
+            // Recharger les stats si on est sur l'écran d'accueil
+            const homeScreen = document.getElementById('home-screen');
+            if (homeScreen && homeScreen.classList.contains('active')) {
+                loadStats();
+            }
+        } else {
+            alert('❌ ' + (data.error || 'Erreur lors de l\'ajout des points'));
+        }
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('❌ Erreur lors de l\'ajout des points');
+    }
 }

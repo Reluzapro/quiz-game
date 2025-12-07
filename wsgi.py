@@ -11,8 +11,10 @@ project_home = os.path.dirname(__file__)
 if project_home not in sys.path:
     sys.path.insert(0, project_home)
 
-# Import the Flask app
-from app import app as application
+# Import the Flask app and SocketIO
+from app import app, socketio
+
+application = app
 
 if __name__ == "__main__":
-    application.run()
+    socketio.run(app)

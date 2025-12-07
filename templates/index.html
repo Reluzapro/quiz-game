@@ -13,9 +13,10 @@
             <div class="card">
                 <div class="user-info">
                     <span id="username-display">Chargement...</span>
+                    <button class="btn btn-shop btn-small" onclick="showShop()">🛒 Boutique</button>
                     <button class="btn btn-secondary btn-small" onclick="handleLogout()">Déconnexion</button>
                 </div>
-                <h1>🎮 Jeu de Questions</h1>
+                <h1 ondblclick="showDevPanel()">🎮 Jeu de Questions</h1>
                 <h2>Choisissez votre matière</h2>
                 
                 <div class="matiere-selector">
@@ -38,7 +39,10 @@
                     </ul>
                 </div>
 
-                <button class="btn btn-primary btn-large" onclick="startGame(currentMatiere, 5)">⏱️ Commencer une session (5 min)</button>
+                <div class="button-group-main">
+                    <button class="btn btn-primary btn-large" onclick="startGame(currentMatiere, 5)">⏱️ Session Solo (5 min)</button>
+                    <button class="btn btn-success btn-large" onclick="showBattleMenu()">⚔️ Mode Battle</button>
+                </div>
                 <button id="resume-btn" class="btn btn-warning btn-large" onclick="resumeGame()" style="display: none;">📂 Reprendre la partie</button>
                 <button class="btn btn-secondary btn-large" onclick="showScores()">Voir les scores</button>
             </div>
@@ -72,6 +76,13 @@
                 </div>
 
                 <div id="message" class="message"></div>
+                
+                <div class="hint-section">
+                    <button id="hint-button" class="btn btn-hint" onclick="useHint()" style="display: none;">
+                        💡 Utiliser un indice (<span id="hints-count">0</span>)
+                    </button>
+                    <div id="hint-result" class="hint-result"></div>
+                </div>
 
                 <div id="buttons" class="button-group">
                     <button class="btn btn-success" onclick="submitAnswer(true)">
@@ -115,12 +126,177 @@
         <div id="scores-screen" class="screen">
             <div class="card">
                 <h1>🏆 Classement</h1>
+                <div class="score-tabs">
+                    <button class="score-tab active" onclick="showScoreTab('single')">Meilleures parties</button>
+                    <button class="score-tab" onclick="showScoreTab('total')">Score total</button>
+                </div>
                 <div id="scores-list"></div>
                 <button class="btn btn-primary btn-large" onclick="restartGame()">Retour</button>
             </div>
         </div>
+
+        <!-- Écran Boutique -->
+        <div id="shop-screen" class="screen">
+            <div class="card">
+                <h1>🛒 Boutique</h1>
+                <div class="user-points">
+                    <span>Vos points : <strong id="user-points-display">0</strong> pts | Indices : <strong id="user-hints-display">0</strong> 💡</span>
+                </div>
+                
+                <!-- Section Indices -->
+                <div class="shop-section">
+                    <h2>💡 Indices</h2>
+                    <div class="hints-shop">
+                        <p>Les indices vous révèlent si la réponse proposée est bonne ou mauvaise !</p>
+                        <div class="hints-buy-options">
+                            <button class="btn btn-success" onclick="buyHints(1)">Acheter 1 indice (25 pts)</button>
+                            <button class="btn btn-success" onclick="buyHints(5)">Acheter 5 indices (125 pts)</button>
+                            <button class="btn btn-success" onclick="buyHints(10)">Acheter 10 indices (250 pts)</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Section Thèmes -->
+                <div class="shop-section">
+                    <h2>🎨 Thèmes d'arrière-plan</h2>
+                    <div id="themes-grid" class="themes-grid">
+                        <!-- Les thèmes seront chargés dynamiquement -->
+                    </div>
+                </div>
+                
+                <!-- Section Couleurs de boutons -->
+                <div class="shop-section">
+                    <h2>🎨 Couleurs de boutons</h2>
+                    <div id="button-colors-grid" class="themes-grid">
+                        <!-- Les couleurs seront chargées dynamiquement -->
+                    </div>
+                </div>
+                
+                <!-- Section Émotes -->
+                <div class="shop-section">
+                    <h2>😄 Émotes pour Battle</h2>
+                    <p>Utilisez ces émotes pendant vos duels !</p>
+                    <div id="emotes-grid" class="emotes-grid">
+                        <!-- Les émotes seront chargées dynamiquement -->
+                    </div>
+                </div>
+                
+                <button class="btn btn-primary btn-large" onclick="restartGame()">Retour</button>
+            </div>
+        </div>
+
+        <!-- Écran Menu Battle -->
+        <div id="battle-menu-screen" class="screen">
+            <div class="card">
+                <h1>⚔️ Mode Battle</h1>
+                <p>Affrontez un adversaire en temps réel pendant 5 minutes !</p>
+                <div class="battle-options">
+                    <button class="btn btn-primary btn-large" onclick="createBattle()">🎮 Créer une Battle</button>
+                    <div class="join-battle">
+                        <input type="text" id="battle-code-input" placeholder="CODE" maxlength="6" style="text-transform: uppercase;">
+                        <button class="btn btn-success" onclick="joinBattle()">Rejoindre</button>
+                    </div>
+                </div>
+                <button class="btn btn-secondary btn-large" onclick="restartGame()">Retour</button>
+            </div>
+        </div>
+
+        <!-- Écran Attente Battle -->
+        <div id="battle-waiting-screen" class="screen">
+            <div class="card">
+                <h1>⏳ En attente d'un adversaire...</h1>
+                <div class="battle-code-display">
+                    <p>Code de la battle :</p>
+                    <div class="code-box" id="battle-code-display">------</div>
+                    <p class="code-hint">Partagez ce code avec votre adversaire !</p>
+                </div>
+                <div id="players-status">
+                    <div class="player-status">
+                        <span class="player-name" id="player1-name">Joueur 1</span>
+                        <span class="status-icon" id="player1-status">⏳</span>
+                    </div>
+                    <div class="player-status">
+                        <span class="player-name" id="player2-name">En attente...</span>
+                        <span class="status-icon" id="player2-status">❌</span>
+                    </div>
+                </div>
+                <button class="btn btn-primary btn-large" id="ready-btn" onclick="markReady()" disabled>✅ Je suis prêt !</button>
+                <button class="btn btn-secondary" onclick="cancelBattle()">Annuler</button>
+            </div>
+        </div>
+
+        <!-- Écran Battle (jeu en cours) -->
+        <div id="battle-game-screen" class="screen">
+            <div class="battle-header">
+                <div class="player-panel player1">
+                    <div class="player-name" id="battle-player1-name">Joueur 1</div>
+                    <div class="player-score" id="battle-player1-score">0</div>
+                </div>
+                <div class="battle-timer">
+                    <span id="battle-timer-display">⏱️ 5:00</span>
+                </div>
+                <div class="player-panel player2">
+                    <div class="player-name" id="battle-player2-name">Joueur 2</div>
+                    <div class="player-score" id="battle-player2-score">0</div>
+                </div>
+            </div>
+
+            <div class="card question-card">
+                <div class="question-header">
+                    <h3>Question</h3>
+                </div>
+                <div id="battle-question-text" class="question-text"></div>
+                
+                <div class="answer-section">
+                    <div class="answer-label">Réponse proposée:</div>
+                    <div id="battle-answer-text" class="answer-text"></div>
+                    <div id="battle-remaining-answers" class="remaining-info"></div>
+                </div>
+
+                <div id="battle-message" class="message"></div>
+
+                <div id="battle-buttons" class="button-group">
+                    <button class="btn btn-success" onclick="submitBattleAnswer(true)">✓ OUI</button>
+                    <button class="btn btn-danger" onclick="submitBattleAnswer(false)">✗ NON</button>
+                </div>
+                
+                <!-- Émotes pour Battle -->
+                <div class="battle-emotes">
+                    <button class="btn-emote-toggle" onclick="toggleEmotePicker()">😄 Émotes</button>
+                    <div id="emote-picker" class="emote-picker" style="display: none;">
+                        <!-- Les émotes possédées seront chargées ici -->
+                    </div>
+                </div>
+                
+                <!-- Zone d'affichage des émotes reçues -->
+                <div id="emote-display" class="emote-display"></div>
+
+                <button id="battle-next-btn" class="btn btn-primary" onclick="nextBattleQuestion()" style="display: none;">Suivant →</button>
+            </div>
+        </div>
+
+        <!-- Écran Résultat Battle -->
+        <div id="battle-result-screen" class="screen">
+            <div class="card">
+                <h1>🏁 Battle Terminée !</h1>
+                <div class="battle-results">
+                    <div class="result-player">
+                        <h2 id="result-player1-name">Joueur 1</h2>
+                        <div class="result-score" id="result-player1-score">0 pts</div>
+                    </div>
+                    <div class="result-vs">VS</div>
+                    <div class="result-player">
+                        <h2 id="result-player2-name">Joueur 2</h2>
+                        <div class="result-score" id="result-player2-score">0 pts</div>
+                    </div>
+                </div>
+                <div class="winner-announcement" id="winner-announcement">🏆 Gagnant : ???</div>
+                <button class="btn btn-primary btn-large" onclick="restartGame()">Retour à l'accueil</button>
+            </div>
+        </div>
     </div>
 
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>

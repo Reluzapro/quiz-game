@@ -4,12 +4,14 @@
 from flask import Flask, render_template, jsonify, request, session, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from flask_socketio import SocketIO, emit, join_room, leave_room
 from werkzeug.security import generate_password_hash, check_password_hash
 import csv
 import random
 import os
 import uuid
 import json
+import string
 from datetime import datetime
 from pathlib import Path
 from config import Config
@@ -18,6 +20,7 @@ app = Flask(__name__)
 app.config.from_object(Config)
 
 db = SQLAlchemy(app)
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 login_manager = LoginManager(app)
 login_manager.login_view = 'auth_page'
 login_manager.login_message = None
@@ -49,14 +52,94 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(200), nullable=False)
+    total_score = db.Column(db.Integer, default=0)  # Score total cumulé de toutes les parties
+    hints_count = db.Column(db.Integer, default=0)  # Nombre d'indices possédés
+    current_theme = db.Column(db.String(50), default='default')  # Thème actuel équipé
+    current_button_color = db.Column(db.String(50), default='default')  # Couleur des boutons
+    owned_emotes = db.Column(db.Text, default='')  # Émotes possédées (JSON array)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     games = db.relationship('SavedGame', backref='user', lazy=True)
+    owned_themes = db.relationship('UserTheme', backref='user', lazy=True)
+    owned_button_colors = db.relationship('UserButtonColor', backref='user', lazy=True)
     
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
     
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+    
+    def add_score(self, points):
+        """Ajoute des points au score total (ne peut pas être négatif)."""
+        new_score = self.total_score + points
+        # Assurer que le score ne descend jamais en dessous de 0
+        self.total_score = max(0, new_score)
+    
+    def owns_theme(self, theme_id):
+        """Vérifie si l'utilisateur possède un thème."""
+        if theme_id == 'default':
+            return True
+        return UserTheme.query.filter_by(user_id=self.id, theme_id=theme_id).first() is not None
+    
+    def buy_theme(self, theme_id, price):
+        """Achète un thème si l'utilisateur a assez de points."""
+        if self.total_score >= price and not self.owns_theme(theme_id):
+            self.total_score -= price
+            user_theme = UserTheme(user_id=self.id, theme_id=theme_id)
+            db.session.add(user_theme)
+            return True
+        return False
+    
+    def owns_button_color(self, color_id):
+        """Vérifie si l'utilisateur possède une couleur de bouton."""
+        if color_id == 'default':
+            return True
+        return UserButtonColor.query.filter_by(user_id=self.id, color_id=color_id).first() is not None
+    
+    def buy_button_color(self, color_id, price):
+        """Achète une couleur de bouton si l'utilisateur a assez de points."""
+        if self.total_score >= price and not self.owns_button_color(color_id):
+            self.total_score -= price
+            user_button_color = UserButtonColor(user_id=self.id, color_id=color_id)
+            db.session.add(user_button_color)
+            return True
+        return False
+    
+    def get_owned_emotes(self):
+        """Retourne la liste des émotes possédées."""
+        if not self.owned_emotes:
+            return []
+        try:
+            return json.loads(self.owned_emotes)
+        except:
+            return []
+    
+    def owns_emote(self, emote_id):
+        """Vérifie si l'utilisateur possède une émote."""
+        return emote_id in self.get_owned_emotes()
+    
+    def buy_emote(self, emote_id, price):
+        """Achète une émote si l'utilisateur a assez de points."""
+        if self.total_score >= price and not self.owns_emote(emote_id):
+            self.total_score -= price
+            owned = self.get_owned_emotes()
+            owned.append(emote_id)
+            self.owned_emotes = json.dumps(owned)
+            return True
+        return False
+
+class UserTheme(db.Model):
+    """Thèmes possédés par l'utilisateur."""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    theme_id = db.Column(db.String(50), nullable=False)
+    purchased_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class UserButtonColor(db.Model):
+    """Couleurs de boutons possédées par l'utilisateur."""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    color_id = db.Column(db.String(50), nullable=False)
+    purchased_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class SavedGame(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -67,6 +150,7 @@ class SavedGame(db.Model):
     total_questions = db.Column(db.Integer, default=0)
     questions_correctes = db.Column(db.Integer, default=0)
     is_completed = db.Column(db.Boolean, default=False)
+    duration_seconds = db.Column(db.Integer, default=0)  # Durée de la partie en secondes (300s = 5min)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -82,6 +166,26 @@ class QuestionProgress(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     user = db.relationship('User', backref='question_progress', lazy=True)
+
+class Battle(db.Model):
+    """Partie en mode Battle (2 joueurs)."""
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(6), unique=True, nullable=False)  # Code unique à 6 caractères
+    matiere = db.Column(db.String(50), nullable=False)
+    player1_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    player2_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    player1_score = db.Column(db.Integer, default=0)
+    player2_score = db.Column(db.Integer, default=0)
+    player1_ready = db.Column(db.Boolean, default=False)
+    player2_ready = db.Column(db.Boolean, default=False)
+    status = db.Column(db.String(20), default='waiting')  # waiting, playing, finished
+    questions_data = db.Column(db.Text, nullable=True)  # JSON: liste des questions pour la battle
+    start_time = db.Column(db.DateTime, nullable=True)
+    end_time = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    player1 = db.relationship('User', foreign_keys=[player1_id], backref='battles_as_player1')
+    player2 = db.relationship('User', foreign_keys=[player2_id], backref='battles_as_player2')
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -114,6 +218,215 @@ def charger_questions(matiere='thermo'):
                 }
                 questions.append(question)
     return questions
+
+# Thèmes disponibles dans la boutique
+THEMES = {
+    'default': {
+        'id': 'default',
+        'nom': 'Violet Classique',
+        'gradient': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        'prix': 0,
+        'description': 'Le thème par défaut'
+    },
+    'ocean': {
+        'id': 'ocean',
+        'nom': 'Océan Profond',
+        'gradient': 'linear-gradient(135deg, #2E3192 0%, #1BFFFF 100%)',
+        'prix': 500,
+        'description': 'Plongez dans les profondeurs'
+    },
+    'sunset': {
+        'id': 'sunset',
+        'nom': 'Coucher de Soleil',
+        'gradient': 'linear-gradient(135deg, #FF6B6B 0%, #FFE66D 100%)',
+        'prix': 500,
+        'description': 'Chaleur du crépuscule'
+    },
+    'forest': {
+        'id': 'forest',
+        'nom': 'Forêt Mystique',
+        'gradient': 'linear-gradient(135deg, #134E5E 0%, #71B280 100%)',
+        'prix': 750,
+        'description': 'Nature verdoyante'
+    },
+    'galaxy': {
+        'id': 'galaxy',
+        'nom': 'Galaxie Cosmique',
+        'gradient': 'linear-gradient(135deg, #2C3E50 0%, #4CA1AF 100%)',
+        'prix': 1000,
+        'description': 'Voyage spatial'
+    },
+    'fire': {
+        'id': 'fire',
+        'nom': 'Flammes Ardentes',
+        'gradient': 'linear-gradient(135deg, #F2994A 0%, #F2C94C 100%)',
+        'prix': 1000,
+        'description': 'Énergie incandescente'
+    },
+    'aurora': {
+        'id': 'aurora',
+        'nom': 'Aurore Boréale',
+        'gradient': 'linear-gradient(135deg, #00C9FF 0%, #92FE9D 100%)',
+        'prix': 1500,
+        'description': 'Lumières magiques du nord'
+    },
+    'royal': {
+        'id': 'royal',
+        'nom': 'Or Royal',
+        'gradient': 'linear-gradient(135deg, #DAA520 0%, #FFD700 100%)',
+        'prix': 2000,
+        'description': 'Luxe et prestige'
+    }
+}
+
+# Couleurs de boutons disponibles dans la boutique
+BUTTON_COLORS = {
+    'default': {
+        'id': 'default',
+        'nom': 'Bleu Standard',
+        'couleur': '#4CAF50',
+        'couleur_hover': '#45a049',
+        'prix': 0,
+        'description': 'La couleur par défaut'
+    },
+    'red': {
+        'id': 'red',
+        'nom': 'Rouge Passion',
+        'couleur': '#FF5252',
+        'couleur_hover': '#E53935',
+        'prix': 150,
+        'description': 'Boutons rouge vif'
+    },
+    'blue': {
+        'id': 'blue',
+        'nom': 'Bleu Électrique',
+        'couleur': '#2196F3',
+        'couleur_hover': '#1976D2',
+        'prix': 150,
+        'description': 'Boutons bleu éclatant'
+    },
+    'purple': {
+        'id': 'purple',
+        'nom': 'Violet Royal',
+        'couleur': '#9C27B0',
+        'couleur_hover': '#7B1FA2',
+        'prix': 200,
+        'description': 'Boutons violets élégants'
+    },
+    'orange': {
+        'id': 'orange',
+        'nom': 'Orange Solaire',
+        'couleur': '#FF9800',
+        'couleur_hover': '#F57C00',
+        'prix': 200,
+        'description': 'Boutons orange énergiques'
+    },
+    'pink': {
+        'id': 'pink',
+        'nom': 'Rose Bonbon',
+        'couleur': '#E91E63',
+        'couleur_hover': '#C2185B',
+        'prix': 250,
+        'description': 'Boutons rose éclatant'
+    },
+    'teal': {
+        'id': 'teal',
+        'nom': 'Turquoise Océan',
+        'couleur': '#009688',
+        'couleur_hover': '#00796B',
+        'prix': 300,
+        'description': 'Boutons turquoise apaisants'
+    },
+    'gold': {
+        'id': 'gold',
+        'nom': 'Or Prestigieux',
+        'couleur': '#FFD700',
+        'couleur_hover': '#DAA520',
+        'prix': 500,
+        'description': 'Boutons dorés luxueux'
+    }
+}
+
+# Émotes disponibles pour le mode Battle
+EMOTES = {
+    'fire': {
+        'id': 'fire',
+        'nom': '🔥 Enflammé',
+        'emoji': '🔥',
+        'prix': 50,
+        'description': 'T\'es en feu !'
+    },
+    'trophy': {
+        'id': 'trophy',
+        'nom': '🏆 Trophée',
+        'emoji': '🏆',
+        'prix': 100,
+        'description': 'La victoire est proche'
+    },
+    'rocket': {
+        'id': 'rocket',
+        'nom': '🚀 Fusée',
+        'emoji': '🚀',
+        'prix': 100,
+        'description': 'Vers l\'infini et au-delà'
+    },
+    'brain': {
+        'id': 'brain',
+        'nom': '🧠 Cerveau',
+        'emoji': '🧠',
+        'prix': 150,
+        'description': 'Trop intelligent'
+    },
+    'lightning': {
+        'id': 'lightning',
+        'nom': '⚡ Éclair',
+        'emoji': '⚡',
+        'prix': 150,
+        'description': 'Rapide comme l\'éclair'
+    },
+    'star': {
+        'id': 'star',
+        'nom': '⭐ Étoile',
+        'emoji': '⭐',
+        'prix': 100,
+        'description': 'Tu brilles'
+    },
+    'exploding': {
+        'id': 'exploding',
+        'nom': '🤯 Esprit Soufflé',
+        'emoji': '🤯',
+        'prix': 200,
+        'description': 'Incroyable'
+    },
+    'thinking': {
+        'id': 'thinking',
+        'nom': '🤔 Réflexion',
+        'emoji': '🤔',
+        'prix': 50,
+        'description': 'Laisse-moi réfléchir'
+    },
+    'laugh': {
+        'id': 'laugh',
+        'nom': '😂 Rire',
+        'emoji': '😂',
+        'prix': 100,
+        'description': 'Trop drôle'
+    },
+    'cool': {
+        'id': 'cool',
+        'nom': '😎 Cool',
+        'emoji': '😎',
+        'prix': 150,
+        'description': 'Stylé'
+    },
+    'party': {
+        'id': 'party',
+        'nom': '🎉 Fête',
+        'emoji': '🎉',
+        'prix': 200,
+        'description': 'C\'est la fête'
+    }
+}
 
 @app.route('/')
 @login_required
@@ -308,17 +621,27 @@ def get_question():
     game = games[game_id]
     questions = game['questions']
     current_index = game['current_index']
+    timer_minutes = game.get('timer_minutes', 0)
     
+    # Si on a fini toutes les questions et qu'on est en mode chrono, recommencer un cycle
     if current_index >= len(questions):
-        questions_a_reviser = game.get('questions_a_reviser', [])
-        if questions_a_reviser:
-            return jsonify({
-                'finished': True, 
-                'score': game['score'],
-                'has_revision': True,
-                'revision_count': len(questions_a_reviser)
-            })
-        return jsonify({'finished': True, 'score': game['score'], 'has_revision': False})
+        if timer_minutes > 0:
+            # Recommencer le cycle avec les mêmes questions
+            game['current_index'] = 0
+            game['reponses_restantes'] = []
+            current_index = 0
+            random.shuffle(questions)  # Mélanger pour varier
+        else:
+            # Mode classique: montrer l'écran de fin
+            questions_a_reviser = game.get('questions_a_reviser', [])
+            if questions_a_reviser:
+                return jsonify({
+                    'finished': True, 
+                    'score': game['score'],
+                    'has_revision': True,
+                    'revision_count': len(questions_a_reviser)
+                })
+            return jsonify({'finished': True, 'score': game['score'], 'has_revision': False})
     
     question_data = questions[current_index]
     
@@ -335,6 +658,9 @@ def get_question():
         return get_question()
     
     reponse_proposee = reponses_restantes[0]
+    
+    # Sauvegarder la réponse proposée pour l'indice
+    game['current_proposed_answer'] = reponse_proposee
     
     return jsonify({
         'finished': False,
@@ -535,22 +861,21 @@ def get_stats():
 @app.route('/api/scores', methods=['POST'])
 @login_required
 def get_scores():
-    """Retourne les meilleurs scores pour une matière."""
+    """Retourne les meilleurs scores pour une matière (parties de 5 minutes uniquement)."""
     data = request.json or {}
     matiere = data.get('matiere', 'thermo')
     
-    # Récupérer les meilleures parties terminées pour cette matière
+    # Récupérer uniquement les parties de 5 minutes (300 secondes)
     best_games = SavedGame.query.filter_by(
         is_completed=True,
-        matiere=matiere
+        matiere=matiere,
+        duration_seconds=300
     ).order_by(SavedGame.score.desc()).limit(10).all()
     
     scores = [{
         'username': game.user.username,
         'score': game.score,
-        'questions_correctes': game.questions_correctes,
-        'total_questions': game.total_questions,
-        'date': game.created_at.strftime('%d/%m/%Y')
+        'date': game.created_at.strftime('%d/%m/%Y %H:%M')
     } for game in best_games]
     
     return jsonify({
@@ -558,6 +883,338 @@ def get_scores():
         'matiere': matiere,
         'matiere_nom': MATIERES[matiere]['nom']
     })
+
+@app.route('/api/scores/total', methods=['POST'])
+@login_required
+def get_total_scores():
+    """Retourne le classement des scores totaux de tous les utilisateurs."""
+    # Récupérer les 10 meilleurs utilisateurs par score total (score > 0 uniquement)
+    top_users = User.query.filter(User.total_score > 0).order_by(User.total_score.desc()).limit(10).all()
+    
+    scores = [{
+        'username': user.username,
+        'total_score': user.total_score,
+        'games_played': len([g for g in user.games if g.is_completed and g.duration_seconds == 300])
+    } for user in top_users]
+    
+    return jsonify({
+        'scores': scores,
+        'current_user_score': current_user.total_score
+    })
+
+@app.route('/api/shop/themes', methods=['GET'])
+@login_required
+def get_themes():
+    """Retourne la liste des thèmes disponibles avec leur statut d'achat."""
+    themes_list = []
+    for theme_id, theme_data in THEMES.items():
+        themes_list.append({
+            'id': theme_data['id'],
+            'nom': theme_data['nom'],
+            'gradient': theme_data['gradient'],
+            'prix': theme_data['prix'],
+            'description': theme_data['description'],
+            'owned': current_user.owns_theme(theme_id),
+            'equipped': current_user.current_theme == theme_id
+        })
+    
+    return jsonify({
+        'themes': themes_list,
+        'user_score': current_user.total_score,
+        'current_theme': current_user.current_theme
+    })
+
+@app.route('/api/shop/buy', methods=['POST'])
+@login_required
+def buy_theme():
+    """Achète un thème avec les points de l'utilisateur."""
+    data = request.json or {}
+    theme_id = data.get('theme_id')
+    
+    if not theme_id or theme_id not in THEMES:
+        return jsonify({'error': 'Thème invalide'}), 400
+    
+    theme = THEMES[theme_id]
+    
+    if current_user.owns_theme(theme_id):
+        return jsonify({'error': 'Vous possédez déjà ce thème'}), 400
+    
+    if current_user.total_score < theme['prix']:
+        return jsonify({'error': 'Points insuffisants'}), 400
+    
+    if current_user.buy_theme(theme_id, theme['prix']):
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': f'Thème {theme["nom"]} acheté !',
+            'new_score': current_user.total_score
+        })
+    
+    return jsonify({'error': 'Erreur lors de l\'achat'}), 400
+
+@app.route('/api/shop/equip', methods=['POST'])
+@login_required
+def equip_theme():
+    """Équipe un thème possédé par l'utilisateur."""
+    data = request.json or {}
+    theme_id = data.get('theme_id')
+    
+    if not theme_id or theme_id not in THEMES:
+        return jsonify({'error': 'Thème invalide'}), 400
+    
+    if not current_user.owns_theme(theme_id):
+        return jsonify({'error': 'Vous ne possédez pas ce thème'}), 400
+    
+    current_user.current_theme = theme_id
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'message': f'Thème {THEMES[theme_id]["nom"]} équipé !',
+        'gradient': THEMES[theme_id]['gradient']
+    })
+
+@app.route('/api/shop/buy_hints', methods=['POST'])
+@login_required
+def buy_hints():
+    """Achète des indices (25 points l'unité)."""
+    data = request.json or {}
+    quantity = data.get('quantity', 1)
+    
+    try:
+        quantity = int(quantity)
+        if quantity < 1 or quantity > 100:
+            return jsonify({'error': 'Quantité invalide (1-100)'}), 400
+        
+        price = quantity * 25
+        
+        if current_user.total_score < price:
+            return jsonify({'error': f'Points insuffisants ! Il vous faut {price} points'}), 400
+        
+        current_user.total_score -= price
+        current_user.hints_count += quantity
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'{quantity} indice{"s" if quantity > 1 else ""} acheté{"s" if quantity > 1 else ""} !',
+            'new_score': current_user.total_score,
+            'hints_count': current_user.hints_count
+        })
+    except ValueError:
+        return jsonify({'error': 'Quantité invalide'}), 400
+
+@app.route('/api/shop/button_colors', methods=['GET'])
+@login_required
+def get_button_colors():
+    """Retourne la liste des couleurs de boutons disponibles."""
+    colors_with_status = []
+    
+    for color_id, color_data in BUTTON_COLORS.items():
+        colors_with_status.append({
+            'id': color_id,
+            'nom': color_data['nom'],
+            'couleur': color_data['couleur'],
+            'couleur_hover': color_data['couleur_hover'],
+            'prix': color_data['prix'],
+            'description': color_data['description'],
+            'owned': current_user.owns_button_color(color_id),
+            'equipped': current_user.current_button_color == color_id
+        })
+    
+    return jsonify({
+        'colors': colors_with_status,
+        'user_score': current_user.total_score
+    })
+
+@app.route('/api/shop/buy_button_color', methods=['POST'])
+@login_required
+def buy_button_color():
+    """Achète une couleur de bouton."""
+    data = request.json or {}
+    color_id = data.get('color_id')
+    
+    if not color_id or color_id not in BUTTON_COLORS:
+        return jsonify({'error': 'Couleur invalide'}), 400
+    
+    color_data = BUTTON_COLORS[color_id]
+    
+    if current_user.owns_button_color(color_id):
+        return jsonify({'error': 'Vous possédez déjà cette couleur'}), 400
+    
+    if current_user.total_score < color_data['prix']:
+        return jsonify({'error': f'Points insuffisants ! Il vous faut {color_data["prix"]} points'}), 400
+    
+    if current_user.buy_button_color(color_id, color_data['prix']):
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': f'Couleur {color_data["nom"]} achetée !',
+            'new_score': current_user.total_score
+        })
+    
+    return jsonify({'error': 'Erreur lors de l\'achat'}), 500
+
+@app.route('/api/shop/equip_button_color', methods=['POST'])
+@login_required
+def equip_button_color():
+    """Équipe une couleur de bouton."""
+    data = request.json or {}
+    color_id = data.get('color_id')
+    
+    if not color_id or color_id not in BUTTON_COLORS:
+        return jsonify({'error': 'Couleur invalide'}), 400
+    
+    if not current_user.owns_button_color(color_id):
+        return jsonify({'error': 'Vous ne possédez pas cette couleur'}), 400
+    
+    current_user.current_button_color = color_id
+    db.session.commit()
+    
+    color_data = BUTTON_COLORS[color_id]
+    
+    return jsonify({
+        'success': True,
+        'message': f'Couleur {color_data["nom"]} équipée !',
+        'couleur': color_data['couleur'],
+        'couleur_hover': color_data['couleur_hover']
+    })
+
+@app.route('/api/shop/emotes', methods=['GET'])
+@login_required
+def get_emotes():
+    """Retourne la liste des émotes disponibles."""
+    emotes_with_status = []
+    
+    for emote_id, emote_data in EMOTES.items():
+        emotes_with_status.append({
+            'id': emote_id,
+            'nom': emote_data['nom'],
+            'emoji': emote_data['emoji'],
+            'prix': emote_data['prix'],
+            'description': emote_data['description'],
+            'owned': current_user.owns_emote(emote_id)
+        })
+    
+    return jsonify({
+        'emotes': emotes_with_status,
+        'user_score': current_user.total_score,
+        'owned_emotes': current_user.get_owned_emotes()
+    })
+
+@app.route('/api/shop/buy_emote', methods=['POST'])
+@login_required
+def buy_emote():
+    """Achète une émote."""
+    data = request.json or {}
+    emote_id = data.get('emote_id')
+    
+    if not emote_id or emote_id not in EMOTES:
+        return jsonify({'error': 'Émote invalide'}), 400
+    
+    emote_data = EMOTES[emote_id]
+    
+    if current_user.owns_emote(emote_id):
+        return jsonify({'error': 'Vous possédez déjà cette émote'}), 400
+    
+    if current_user.total_score < emote_data['prix']:
+        return jsonify({'error': f'Points insuffisants ! Il vous faut {emote_data["prix"]} points'}), 400
+    
+    if current_user.buy_emote(emote_id, emote_data['prix']):
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': f'Émote {emote_data["nom"]} achetée !',
+            'new_score': current_user.total_score
+        })
+    
+    return jsonify({'error': 'Erreur lors de l\'achat'}), 500
+
+@app.route('/api/game/use_hint', methods=['POST'])
+@login_required
+def use_hint():
+    """Utilise un indice pour révéler si la réponse est bonne ou mauvaise."""
+    game_id = session.get('game_id')
+    if not game_id or game_id not in games:
+        return jsonify({'error': 'Aucune partie en cours'}), 400
+    
+    if current_user.hints_count <= 0:
+        return jsonify({'error': 'Vous n\'avez plus d\'indices !'}), 400
+    
+    game = games[game_id]
+    current_question = game['questions'][game['current_index']]
+    proposed_answer = game.get('current_proposed_answer')
+    
+    if not proposed_answer:
+        return jsonify({'error': 'Aucune réponse proposée'}), 400
+    
+    # Décrémenter le nombre d'indices
+    current_user.hints_count -= 1
+    db.session.commit()
+    
+    # Vérifier si c'est la bonne réponse
+    is_correct = proposed_answer == current_question['bonne_reponse']
+    
+    return jsonify({
+        'success': True,
+        'is_correct': is_correct,
+        'hints_remaining': current_user.hints_count,
+        'message': '✅ C\'est la bonne réponse !' if is_correct else '❌ Ce n\'est pas la bonne réponse !'
+    })
+
+@app.route('/api/user/hints', methods=['GET'])
+@login_required
+def get_hints_count():
+    """Retourne le nombre d'indices de l'utilisateur."""
+    return jsonify({
+        'hints_count': current_user.hints_count
+    })
+
+@app.route('/api/user/button_color', methods=['GET'])
+@login_required
+def get_user_button_color():
+    """Retourne la couleur de bouton actuelle de l'utilisateur."""
+    color_id = current_user.current_button_color
+    if color_id and color_id in BUTTON_COLORS:
+        color_data = BUTTON_COLORS[color_id]
+        return jsonify({
+            'color_id': color_id,
+            'couleur': color_data['couleur'],
+            'couleur_hover': color_data['couleur_hover']
+        })
+    return jsonify({
+        'color_id': 'default',
+        'couleur': BUTTON_COLORS['default']['couleur'],
+        'couleur_hover': BUTTON_COLORS['default']['couleur_hover']
+    })
+
+@app.route('/api/dev/add_points', methods=['POST'])
+@login_required
+def dev_add_points():
+    """Ajoute des points (mode développeur uniquement)."""
+    data = request.json or {}
+    password = data.get('password', '')
+    points = data.get('points', 0)
+    
+    # Vérifier le mot de passe (10 espaces)
+    if password != '          ':
+        return jsonify({'error': 'Mot de passe incorrect'}), 403
+    
+    try:
+        points = int(points)
+        if points < 0 or points > 10000:
+            return jsonify({'error': 'Nombre de points invalide (0-10000)'}), 400
+        
+        current_user.add_score(points)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'{points} points ajoutés !',
+            'new_score': current_user.total_score
+        })
+    except ValueError:
+        return jsonify({'error': 'Nombre de points invalide'}), 400
 
 @app.route('/api/save', methods=['POST'])
 @login_required
@@ -628,6 +1285,14 @@ def complete_game():
     
     game = games[game_id]
     matiere = game.get('matiere', 'thermo')
+    timer_minutes = game.get('timer_minutes', 0)
+    start_time = game.get('start_time')
+    
+    # Calculer la durée réelle de la partie
+    duration_seconds = 0
+    if timer_minutes > 0 and start_time:
+        # En mode chrono, la durée est toujours la durée du timer (5 min = 300s)
+        duration_seconds = timer_minutes * 60
     
     # Supprimer sauvegarde non terminée
     SavedGame.query.filter_by(
@@ -652,9 +1317,14 @@ def complete_game():
         score=game['score'],
         total_questions=len(game['questions']),
         questions_correctes=len(game.get('questions_correctes', [])),
-        is_completed=True
+        is_completed=True,
+        duration_seconds=duration_seconds
     )
     db.session.add(saved_game)
+    
+    # Mettre à jour le score total de l'utilisateur (ne peut pas être négatif)
+    current_user.add_score(game['score'])
+    
     db.session.commit()
     
     return jsonify({'success': True})
@@ -702,5 +1372,252 @@ def restore_game():
         'matiere_emoji': MATIERES[matiere]['emoji']
     })
 
+# ==================== MODE BATTLE ====================
+
+def generate_battle_code():
+    """Génère un code de battle unique à 6 caractères."""
+    while True:
+        code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+        if not Battle.query.filter_by(code=code).first():
+            return code
+
+@app.route('/api/battle/create', methods=['POST'])
+@login_required
+def create_battle():
+    """Crée une nouvelle bataille et retourne le code."""
+    data = request.json or {}
+    matiere = data.get('matiere', 'thermo')
+    
+    if matiere not in MATIERES:
+        return jsonify({'error': 'Matière invalide'}), 400
+    
+    # Créer une nouvelle battle
+    code = generate_battle_code()
+    battle = Battle(
+        code=code,
+        matiere=matiere,
+        player1_id=current_user.id
+    )
+    db.session.add(battle)
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'code': code,
+        'battle_id': battle.id
+    })
+
+@app.route('/api/battle/join/<code>', methods=['POST'])
+@login_required
+def join_battle(code):
+    """Rejoindre une bataille avec un code."""
+    battle = Battle.query.filter_by(code=code.upper()).first()
+    
+    if not battle:
+        return jsonify({'error': 'Code de battle invalide'}), 404
+    
+    if battle.status != 'waiting':
+        return jsonify({'error': 'Cette battle a déjà commencé ou est terminée'}), 400
+    
+    if battle.player1_id == current_user.id:
+        return jsonify({'error': 'Vous êtes déjà dans cette battle'}), 400
+    
+    if battle.player2_id:
+        return jsonify({'error': 'Cette battle est déjà complète'}), 400
+    
+    # Rejoindre la battle
+    battle.player2_id = current_user.id
+    db.session.commit()
+    
+    # Notifier via SocketIO que le joueur 2 a rejoint
+    socketio.emit('player_joined', {
+        'player2_name': current_user.username
+    }, room=f'battle_{battle.id}')
+    
+    return jsonify({
+        'success': True,
+        'battle_id': battle.id,
+        'matiere': battle.matiere
+    })
+
+@app.route('/api/battle/<int:battle_id>', methods=['GET'])
+@login_required
+def get_battle(battle_id):
+    """Récupère les informations d'une battle."""
+    battle = Battle.query.get_or_404(battle_id)
+    
+    # Vérifier que l'utilisateur fait partie de cette battle
+    if battle.player1_id != current_user.id and battle.player2_id != current_user.id:
+        return jsonify({'error': 'Vous ne faites pas partie de cette battle'}), 403
+    
+    return jsonify({
+        'id': battle.id,
+        'code': battle.code,
+        'matiere': battle.matiere,
+        'player1_name': battle.player1.username,
+        'player2_name': battle.player2.username if battle.player2 else None,
+        'player1_score': battle.player1_score,
+        'player2_score': battle.player2_score,
+        'status': battle.status,
+        'player1_ready': battle.player1_ready,
+        'player2_ready': battle.player2_ready
+    })
+
+# ==================== SOCKETIO EVENTS ====================
+
+@socketio.on('connect')
+def handle_connect():
+    """Gère la connexion d'un client."""
+    print(f'Client connecté: {request.sid}')
+
+@socketio.on('join_battle')
+def handle_join_battle(data):
+    """Un joueur rejoint la room de la battle."""
+    battle_id = data.get('battle_id')
+    if not battle_id:
+        return
+    
+    room = f'battle_{battle_id}'
+    join_room(room)
+    print(f'Joueur {current_user.username if current_user.is_authenticated else "?"} a rejoint la battle {battle_id}')
+
+@socketio.on('ready')
+def handle_player_ready(data):
+    """Un joueur est prêt à commencer."""
+    battle_id = data.get('battle_id')
+    if not battle_id or not current_user.is_authenticated:
+        return
+    
+    battle = Battle.query.get(battle_id)
+    if not battle:
+        return
+    
+    # Marquer le joueur comme prêt
+    if battle.player1_id == current_user.id:
+        battle.player1_ready = True
+    elif battle.player2_id == current_user.id:
+        battle.player2_ready = True
+    
+    db.session.commit()
+    
+    # Notifier l'autre joueur
+    emit('player_ready', {
+        'player_name': current_user.username,
+        'both_ready': battle.player1_ready and battle.player2_ready
+    }, room=f'battle_{battle_id}')
+    
+    # Si les deux joueurs sont prêts, démarrer la battle
+    if battle.player1_ready and battle.player2_ready and battle.status == 'waiting':
+        # Charger les questions
+        questions = charger_questions(battle.matiere)
+        random.shuffle(questions)
+        
+        battle.status = 'playing'
+        battle.start_time = datetime.utcnow()
+        battle.questions_data = json.dumps(questions)
+        db.session.commit()
+        
+        emit('battle_start', {
+            'questions_count': len(questions),
+            'start_time': battle.start_time.isoformat()
+        }, room=f'battle_{battle_id}')
+
+@socketio.on('answer')
+def handle_answer(data):
+    """Un joueur répond à une question."""
+    battle_id = data.get('battle_id')
+    is_correct = data.get('is_correct', False)
+    points = data.get('points', 0)
+    
+    if not battle_id or not current_user.is_authenticated:
+        return
+    
+    battle = Battle.query.get(battle_id)
+    if not battle:
+        return
+    
+    # Mettre à jour le score
+    if battle.player1_id == current_user.id:
+        battle.player1_score += points
+    elif battle.player2_id == current_user.id:
+        battle.player2_score += points
+    
+    db.session.commit()
+    
+    # Diffuser les scores aux deux joueurs
+    emit('scores_update', {
+        'player1_score': battle.player1_score,
+        'player2_score': battle.player2_score
+    }, room=f'battle_{battle_id}')
+
+@socketio.on('battle_end')
+def handle_battle_end(data):
+    """Un joueur a terminé sa partie."""
+    battle_id = data.get('battle_id')
+    
+    if not battle_id or not current_user.is_authenticated:
+        return
+    
+    battle = Battle.query.get(battle_id)
+    if not battle:
+        return
+    
+    # Vérifier si le temps est écoulé pour tout le monde
+    if battle.start_time:
+        elapsed = (datetime.utcnow() - battle.start_time).total_seconds()
+        if elapsed >= 300:  # 5 minutes
+            battle.status = 'finished'
+            battle.end_time = datetime.utcnow()
+            db.session.commit()
+            
+            # Déterminer le gagnant
+            winner = None
+            if battle.player1_score > battle.player2_score:
+                winner = battle.player1.username
+            elif battle.player2_score > battle.player1_score:
+                winner = battle.player2.username
+            else:
+                winner = 'Égalité'
+            
+            emit('battle_finished', {
+                'player1_name': battle.player1.username,
+                'player2_name': battle.player2.username if battle.player2 else 'Aucun',
+                'player1_score': battle.player1_score,
+                'player2_score': battle.player2_score,
+                'winner': winner
+            }, room=f'battle_{battle_id}')
+
+@socketio.on('send_emote')
+def handle_send_emote(data):
+    """Envoie une émote dans un battle."""
+    battle_id = data.get('battle_id')
+    emote_id = data.get('emote_id')
+    
+    if not battle_id or not emote_id or not current_user.is_authenticated:
+        return
+    
+    # Vérifier que l'utilisateur possède l'émote
+    if not current_user.owns_emote(emote_id):
+        return
+    
+    battle = Battle.query.get(battle_id)
+    if not battle:
+        return
+    
+    # Vérifier que l'utilisateur fait partie du battle
+    if current_user.id not in [battle.player1_id, battle.player2_id]:
+        return
+    
+    if emote_id in EMOTES:
+        emote_data = EMOTES[emote_id]
+        
+        # Envoyer l'émote à tous les participants du battle
+        emit('emote_received', {
+            'sender': current_user.username,
+            'emote_id': emote_id,
+            'emoji': emote_data['emoji'],
+            'nom': emote_data['nom']
+        }, room=f'battle_{battle_id}')
+
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5001)
+    socketio.run(app, debug=True, host='0.0.0.0', port=5001)
