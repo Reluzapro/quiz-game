@@ -22,6 +22,28 @@
                     <!-- Les matières seront chargées dynamiquement par JavaScript -->
                 </div>
                 
+                <div id="stats-container" class="stats-container">
+                    <!-- Les stats seront chargées dynamiquement -->
+                </div>
+
+                <div class="game-modes">
+                    <h3>⏱️ Choisissez le mode de jeu :</h3>
+                    <div class="mode-buttons">
+                        <button class="btn btn-secondary btn-mode" onclick="startGame(currentMatiere, 0)">
+                            🎯 Mode Classique<br>
+                            <small>Toutes les questions</small>
+                        </button>
+                        <button class="btn btn-primary btn-mode" onclick="startGame(currentMatiere, 5)">
+                            ⏱️ Session 5 min<br>
+                            <small>Questions non réussies</small>
+                        </button>
+                        <button class="btn btn-primary btn-mode" onclick="startGame(currentMatiere, 10)">
+                            ⏱️ Session 10 min<br>
+                            <small>Questions non réussies</small>
+                        </button>
+                    </div>
+                </div>
+                
                 <div class="rules">
                     <h3>📖 Règles du jeu :</h3>
                     <ul>
@@ -29,11 +51,10 @@
                         <li>Si vous pensez que c'est la bonne réponse, cliquez sur <strong>"OUI"</strong> (+10 points ✅)</li>
                         <li>Si vous pensez que ce n'est pas la bonne, cliquez sur <strong>"NON"</strong></li>
                         <li>⚠️ Attention : si vous dites "OUI" à une mauvaise réponse, vous perdez 5 points!</li>
-                        <li>💡 Si vous refusez toutes les réponses, la bonne réponse vous sera montrée</li>
+                        <li>💡 Mode chronométré : seules les questions non réussies sont proposées</li>
                     </ul>
                 </div>
 
-                <button class="btn btn-primary btn-large" onclick="startGame(currentMatiere)">Commencer le jeu</button>
                 <button id="resume-btn" class="btn btn-warning btn-large" onclick="resumeGame()" style="display: none;">📂 Reprendre la partie</button>
                 <button class="btn btn-secondary btn-large" onclick="showScores()">Voir les scores</button>
             </div>
@@ -45,6 +66,9 @@
                 <div class="score-display">
                     <span class="label">Score:</span>
                     <span id="score" class="score-value">0</span>
+                </div>
+                <div id="timer-display" class="timer-display" style="display: none;">
+                    <span id="timer" class="timer-value">⏱️ 5:00</span>
                 </div>
                 <div class="progress">
                     <span id="question-counter">Question 1/35</span>

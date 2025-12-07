@@ -501,3 +501,115 @@ h3 {
     padding: 12px 30px;
     font-size: 1em;
 }
+
+/* Timer display */
+.timer-display {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.timer-value {
+    background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-size: 1.5em;
+    font-weight: bold;
+    min-width: 120px;
+    text-align: center;
+}
+
+/* Statistiques */
+.stats-container {
+    margin: 30px 0;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 15px;
+}
+
+.stats-card {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 15px;
+}
+
+.stat-item {
+    text-align: center;
+    padding: 15px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.stat-label {
+    display: block;
+    font-size: 0.9em;
+    color: #6c757d;
+    margin-bottom: 8px;
+}
+
+.stat-value {
+    display: block;
+    font-size: 1.8em;
+    font-weight: bold;
+}
+
+.stat-item.success .stat-value {
+    color: #2ecc71;
+}
+
+.stat-item.failed .stat-value {
+    color: #e74c3c;
+}
+
+.stat-item.unseen .stat-value {
+    color: #95a5a6;
+}
+
+.stat-item.completion .stat-value {
+    color: #667eea;
+}
+
+/* Modes de jeu */
+.game-modes {
+    margin: 30px 0;
+}
+
+.mode-buttons {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.btn-mode {
+    padding: 20px !important;
+    height: auto !important;
+    white-space: normal;
+    line-height: 1.4;
+}
+
+.btn-mode small {
+    display: block;
+    margin-top: 5px;
+    font-size: 0.85em;
+    opacity: 0.8;
+}
+
+/* Responsive design pour les nouveaux éléments */
+@media (max-width: 768px) {
+    .stats-card {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .mode-buttons {
+        grid-template-columns: 1fr;
+    }
+    
+    .timer-value {
+        font-size: 1.2em;
+        padding: 8px 16px;
+        min-width: 100px;
+    }
+}

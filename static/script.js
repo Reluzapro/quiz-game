@@ -1,11 +1,14 @@
 let totalQuestions = 0;
 let currentMatiere = 'thermo'; // Matière par défaut
+let timerInterval = null;
+let timerEnabled = false;
 
 // Vérifier l'authentification et les sauvegardes au chargement
 window.addEventListener('DOMContentLoaded', () => {
     checkAuth();
     loadMatieres();
     checkSavedGame();
+    loadStats();
 });
 
 async function loadMatieres() {
@@ -53,8 +56,49 @@ function selectMatiere(matiere) {
     });
     document.getElementById(`btn-${matiere}`).classList.add('active');
     
-    // Recharger les sauvegardes pour cette matière
+    // Recharger les sauvegardes et stats pour cette matière
     checkSavedGame();
+    loadStats();
+}
+
+async function loadStats() {
+    try {
+        const response = await fetch('/api/stats', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ matiere: currentMatiere })
+        });
+        const data = await response.json();
+        
+        // Mettre à jour les stats dans l'interface si l'élément existe
+        const statsContainer = document.getElementById('stats-container');
+        if (statsContainer && data) {
+            statsContainer.innerHTML = `
+                <div class="stats-card">
+                    <div class="stat-item success">
+                        <span class="stat-label">✅ Réussies</span>
+                        <span class="stat-value">${data.success_count}</span>
+                    </div>
+                    <div class="stat-item failed">
+                        <span class="stat-label">❌ Ratées</span>
+                        <span class="stat-value">${data.failed_count}</span>
+                    </div>
+                    <div class="stat-item unseen">
+                        <span class="stat-label">👁️ Non vues</span>
+                        <span class="stat-value">${data.never_seen_count}</span>
+                    </div>
+                    <div class="stat-item completion">
+                        <span class="stat-label">📊 Complétion</span>
+                        <span class="stat-value">${data.completion_percent}%</span>
+                    </div>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Erreur lors du chargement des stats:', error);
+    }
 }
 
 async function checkAuth() {
@@ -109,7 +153,7 @@ async function checkSavedGame() {
     }
 }
 
-async function startGame(matiere = null) {
+async function startGame(matiere = null, timerMinutes = 0) {
     try {
         // Si une matière est fournie, la définir comme matière actuelle
         if (matiere) {
@@ -137,23 +181,112 @@ async function startGame(matiere = null) {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ matiere: currentMatiere })
+            body: JSON.stringify({ 
+                matiere: currentMatiere,
+                timer_minutes: timerMinutes
+            })
         });
         
         const data = await response.json();
         
         if (data.success) {
             totalQuestions = data.total_questions;
+            timerEnabled = data.timer_minutes > 0;
+            
             // Afficher la matière dans l'interface
             if (data.matiere_emoji && data.matiere_nom) {
                 document.getElementById('question-text').textContent = `${data.matiere_emoji} ${data.matiere_nom}`;
             }
+            
+            // Démarrer le chronomètre si activé
+            if (timerEnabled) {
+                startTimer();
+            } else {
+                // Masquer le chronomètre en mode classique
+                const timerDisplay = document.getElementById('timer-display');
+                if (timerDisplay) {
+                    timerDisplay.style.display = 'none';
+                }
+            }
+            
             showScreen('game-screen');
             loadQuestion();
         }
     } catch (error) {
         console.error('Erreur:', error);
         alert('Erreur lors du démarrage du jeu');
+    }
+}
+
+function startTimer() {
+    const timerDisplay = document.getElementById('timer-display');
+    if (timerDisplay) {
+        timerDisplay.style.display = 'block';
+    }
+    
+    // Arrêter l'ancien timer si existe
+    if (timerInterval) {
+        clearInterval(timerInterval);
+    }
+    
+    // Mettre à jour toutes les secondes
+    timerInterval = setInterval(updateTimer, 1000);
+    updateTimer(); // Mise à jour immédiate
+}
+
+async function updateTimer() {
+    try {
+        const response = await fetch('/api/time_remaining');
+        const data = await response.json();
+        
+        if (!data.timer_enabled) {
+            stopTimer();
+            return;
+        }
+        
+        const minutes = Math.floor(data.remaining_seconds / 60);
+        const seconds = data.remaining_seconds % 60;
+        
+        const timerElement = document.getElementById('timer');
+        if (timerElement) {
+            timerElement.textContent = `⏱️ ${minutes}:${seconds.toString().padStart(2, '0')}`;
+            
+            // Changer la couleur si moins d'une minute
+            if (data.remaining_seconds < 60) {
+                timerElement.style.color = '#e74c3c';
+            } else {
+                timerElement.style.color = '#2ecc71';
+            }
+        }
+        
+        // Terminer la partie si le temps est écoulé
+        if (data.is_expired) {
+            stopTimer();
+            alert('⏰ Temps écoulé ! La partie se termine.');
+            showTimedGameEnd();
+        }
+    } catch (error) {
+        console.error('Erreur lors de la mise à jour du timer:', error);
+    }
+}
+
+function stopTimer() {
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
+}
+
+async function showTimedGameEnd() {
+    try {
+        // Récupérer les statistiques finales
+        const response = await fetch('/api/question');
+        const data = await response.json();
+        
+        showEndScreen(data.score || 0, false, 0);
+    } catch (error) {
+        console.error('Erreur:', error);
+        showEndScreen(0, false, 0);
     }
 }
 

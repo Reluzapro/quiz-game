@@ -71,6 +71,19 @@ class SavedGame(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+class QuestionProgress(db.Model):
+    """Suivi du progrès pour chaque question par utilisateur."""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    matiere = db.Column(db.String(50), nullable=False)
+    question_text = db.Column(db.Text, nullable=False)  # Texte de la question pour l'identifier
+    status = db.Column(db.String(20), nullable=False, default='never_seen')  # never_seen, failed, success
+    attempts = db.Column(db.Integer, default=0)
+    last_attempt = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship('User', backref='question_progress', lazy=True)
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -200,18 +213,39 @@ def start_game():
     """Démarre une nouvelle partie."""
     data = request.json or {}
     matiere = data.get('matiere', 'thermo')
+    timer_minutes = data.get('timer_minutes', 0)  # 0 = mode classique, 5 ou 10 = mode chronométré
     
     if matiere not in MATIERES:
         return jsonify({'error': 'Matière invalide'}), 400
     
-    questions = charger_questions(matiere)
+    all_questions = charger_questions(matiere)
     
-    if not questions:
+    if not all_questions:
         return jsonify({'error': f'Aucune question trouvée pour {MATIERES[matiere]["nom"]}'}), 400
+    
+    # En mode chronométré, filtrer pour ne garder que les questions non réussies
+    if timer_minutes > 0:
+        questions_to_practice = []
+        for q in all_questions:
+            progress = QuestionProgress.query.filter_by(
+                user_id=current_user.id,
+                matiere=matiere,
+                question_text=q['question']
+            ).first()
+            
+            # Inclure si jamais vue OU échouée
+            if not progress or progress.status in ['never_seen', 'failed']:
+                questions_to_practice.append(q)
+        
+        questions = questions_to_practice if questions_to_practice else all_questions
+    else:
+        questions = all_questions
     
     random.shuffle(questions)
     
     game_id = str(uuid.uuid4())
+    
+    start_time = datetime.utcnow() if timer_minutes > 0 else None
     
     games[game_id] = {
         'user_id': current_user.id,
@@ -222,19 +256,47 @@ def start_game():
         'score': 0,
         'reponses_restantes': [],
         'questions_correctes': [],
-        'questions_a_reviser': []
+        'questions_a_reviser': [],
+        'timer_minutes': timer_minutes,
+        'start_time': start_time
     }
     
     session['game_id'] = game_id
     
-    print(f"Jeu démarré: {MATIERES[matiere]['nom']} ({len(questions)} questions), ID: {game_id}, Joueur: {current_user.username}")
+    mode = f"{timer_minutes} min" if timer_minutes > 0 else "classique"
+    print(f"Jeu démarré: {MATIERES[matiere]['nom']} ({len(questions)} questions), Mode: {mode}, ID: {game_id}, Joueur: {current_user.username}")
     
     return jsonify({
         'success': True,
         'total_questions': len(questions),
         'matiere': matiere,
         'matiere_nom': MATIERES[matiere]['nom'],
-        'matiere_emoji': MATIERES[matiere]['emoji']
+        'matiere_emoji': MATIERES[matiere]['emoji'],
+        'timer_minutes': timer_minutes
+    })
+
+@app.route('/api/time_remaining', methods=['GET'])
+def get_time_remaining():
+    """Retourne le temps restant dans la partie chronométrée."""
+    game_id = session.get('game_id')
+    if not game_id or game_id not in games:
+        return jsonify({'error': 'No active game'}), 400
+    
+    game = games[game_id]
+    timer_minutes = game.get('timer_minutes', 0)
+    start_time = game.get('start_time')
+    
+    if timer_minutes == 0 or not start_time:
+        return jsonify({'timer_enabled': False})
+    
+    elapsed_seconds = (datetime.utcnow() - start_time).total_seconds()
+    total_seconds = timer_minutes * 60
+    remaining_seconds = max(0, total_seconds - elapsed_seconds)
+    
+    return jsonify({
+        'timer_enabled': True,
+        'remaining_seconds': int(remaining_seconds),
+        'is_expired': remaining_seconds <= 0
     })
 
 @app.route('/api/question', methods=['GET'])
@@ -327,6 +389,31 @@ def submit_answer():
         if 'questions_correctes' not in game:
             game['questions_correctes'] = []
         game['questions_correctes'].append(current_index)
+        
+        # Sauvegarder le progrès : question réussie
+        if current_user.is_authenticated:
+            matiere = game.get('matiere', 'thermo')
+            progress = QuestionProgress.query.filter_by(
+                user_id=current_user.id,
+                matiere=matiere,
+                question_text=question_data['question']
+            ).first()
+            
+            if progress:
+                progress.status = 'success'
+                progress.attempts += 1
+                progress.last_attempt = datetime.utcnow()
+            else:
+                progress = QuestionProgress(
+                    user_id=current_user.id,
+                    matiere=matiere,
+                    question_text=question_data['question'],
+                    status='success',
+                    attempts=1
+                )
+                db.session.add(progress)
+            db.session.commit()
+            
     elif reponse_joueur and not est_bonne_reponse:
         score -= 5
         result['correct'] = False
@@ -339,6 +426,30 @@ def submit_answer():
             game['questions_a_reviser'] = []
         if current_index not in game['questions_a_reviser']:
             game['questions_a_reviser'].append(current_index)
+        
+        # Sauvegarder le progrès : question échouée
+        if current_user.is_authenticated:
+            matiere = game.get('matiere', 'thermo')
+            progress = QuestionProgress.query.filter_by(
+                user_id=current_user.id,
+                matiere=matiere,
+                question_text=question_data['question']
+            ).first()
+            
+            if progress:
+                progress.status = 'failed'
+                progress.attempts += 1
+                progress.last_attempt = datetime.utcnow()
+            else:
+                progress = QuestionProgress(
+                    user_id=current_user.id,
+                    matiere=matiere,
+                    question_text=question_data['question'],
+                    status='failed',
+                    attempts=1
+                )
+                db.session.add(progress)
+            db.session.commit()
     else:
         reponses_restantes.pop(0)
         game['reponses_restantes'] = reponses_restantes
@@ -383,6 +494,44 @@ def start_revision():
     game['questions_a_reviser'] = []
     
     return jsonify({'success': True, 'total_questions': len(revision_questions)})
+
+@app.route('/api/stats', methods=['POST'])
+@login_required
+def get_stats():
+    """Retourne les statistiques de progression pour une matière."""
+    data = request.json or {}
+    matiere = data.get('matiere', 'thermo')
+    
+    if matiere not in MATIERES:
+        return jsonify({'error': 'Matière invalide'}), 400
+    
+    # Compter les questions par statut
+    success_count = QuestionProgress.query.filter_by(
+        user_id=current_user.id,
+        matiere=matiere,
+        status='success'
+    ).count()
+    
+    failed_count = QuestionProgress.query.filter_by(
+        user_id=current_user.id,
+        matiere=matiere,
+        status='failed'
+    ).count()
+    
+    # Nombre total de questions disponibles
+    total_questions = len(charger_questions(matiere))
+    never_seen = total_questions - success_count - failed_count
+    
+    return jsonify({
+        'matiere': matiere,
+        'matiere_nom': MATIERES[matiere]['nom'],
+        'matiere_emoji': MATIERES[matiere]['emoji'],
+        'total_questions': total_questions,
+        'success_count': success_count,
+        'failed_count': failed_count,
+        'never_seen_count': max(0, never_seen),
+        'completion_percent': round((success_count / total_questions * 100) if total_questions > 0 else 0, 1)
+    })
 
 @app.route('/api/scores', methods=['POST'])
 @login_required
