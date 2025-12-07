@@ -12,11 +12,10 @@ import uuid
 import json
 from datetime import datetime
 from pathlib import Path
+from config import Config
 
 app = Flask(__name__)
-app.secret_key = 'votre_cle_secrete_123456'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///thermodynamics_game.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config.from_object(Config)
 
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)

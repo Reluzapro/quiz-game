@@ -25,36 +25,20 @@
                 <div id="stats-container" class="stats-container">
                     <!-- Les stats seront chargées dynamiquement -->
                 </div>
-
-                <div class="game-modes">
-                    <h3>⏱️ Choisissez le mode de jeu :</h3>
-                    <div class="mode-buttons">
-                        <button class="btn btn-secondary btn-mode" onclick="startGame(currentMatiere, 0)">
-                            🎯 Mode Classique<br>
-                            <small>Toutes les questions</small>
-                        </button>
-                        <button class="btn btn-primary btn-mode" onclick="startGame(currentMatiere, 5)">
-                            ⏱️ Session 5 min<br>
-                            <small>Questions non réussies</small>
-                        </button>
-                        <button class="btn btn-primary btn-mode" onclick="startGame(currentMatiere, 10)">
-                            ⏱️ Session 10 min<br>
-                            <small>Questions non réussies</small>
-                        </button>
-                    </div>
-                </div>
                 
                 <div class="rules">
                     <h3>📖 Règles du jeu :</h3>
                     <ul>
+                        <li>⏱️ <strong>Session de 5 minutes</strong> pour réviser rapidement</li>
+                        <li>Seules les questions <strong>non réussies</strong> ou <strong>jamais vues</strong> sont proposées</li>
                         <li>Une réponse vous sera proposée pour chaque question</li>
                         <li>Si vous pensez que c'est la bonne réponse, cliquez sur <strong>"OUI"</strong> (+10 points ✅)</li>
                         <li>Si vous pensez que ce n'est pas la bonne, cliquez sur <strong>"NON"</strong></li>
                         <li>⚠️ Attention : si vous dites "OUI" à une mauvaise réponse, vous perdez 5 points!</li>
-                        <li>💡 Mode chronométré : seules les questions non réussies sont proposées</li>
                     </ul>
                 </div>
 
+                <button class="btn btn-primary btn-large" onclick="startGame(currentMatiere, 5)">⏱️ Commencer une session (5 min)</button>
                 <button id="resume-btn" class="btn btn-warning btn-large" onclick="resumeGame()" style="display: none;">📂 Reprendre la partie</button>
                 <button class="btn btn-secondary btn-large" onclick="showScores()">Voir les scores</button>
             </div>
