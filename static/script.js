@@ -822,6 +822,89 @@ function cancelBattle() {
     restartGame();
 }
 
+// ==================== MATCHMAKING ====================
+
+let matchmakingInterval = null;
+
+async function startMatchmaking() {
+    try {
+        // Créer une battle publique (matchmaking)
+        const response = await fetch('/api/battle/matchmaking', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ matiere: currentMatiere })
+        });
+        
+        const data = await response.json();
+        
+        if (data.error) {
+            alert(data.error);
+            return;
+        }
+        
+        if (data.matched) {
+            // Match trouvé immédiatement
+            currentBattle = {
+                id: data.battle_id,
+                code: data.code
+            };
+            currentBattleId = data.battle_id;
+            
+            socket.emit('join_battle', { battle_id: data.battle_id });
+            await loadBattleInfo(data.battle_id);
+            showScreen('battle-waiting-screen');
+        } else if (data.waiting) {
+            // En attente d'un match
+            currentBattle = {
+                id: data.battle_id,
+                code: data.code
+            };
+            currentBattleId = data.battle_id;
+            
+            socket.emit('join_battle', { battle_id: data.battle_id });
+            showScreen('matchmaking-screen');
+            
+            // Polling pour vérifier si quelqu'un a rejoint
+            matchmakingInterval = setInterval(async () => {
+                try {
+                    const checkResponse = await fetch(`/api/battle/${data.battle_id}`);
+                    const checkData = await checkResponse.json();
+                    
+                    if (checkData.player2_name) {
+                        clearInterval(matchmakingInterval);
+                        await loadBattleInfo(data.battle_id);
+                        showScreen('battle-waiting-screen');
+                    }
+                } catch (error) {
+                    console.error('Erreur matchmaking:', error);
+                }
+            }, 2000); // Vérifier toutes les 2 secondes
+        }
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('Erreur lors du matchmaking');
+    }
+}
+
+function cancelMatchmaking() {
+    if (matchmakingInterval) {
+        clearInterval(matchmakingInterval);
+        matchmakingInterval = null;
+    }
+    
+    // Supprimer la battle en attente
+    if (currentBattle) {
+        fetch(`/api/battle/cancel/${currentBattle.id}`, {
+            method: 'POST'
+        }).catch(err => console.error(err));
+    }
+    
+    currentBattle = null;
+    restartGame();
+}
+
 async function startBattleGame() {
     // Charger les infos de la battle
     const response = await fetch(`/api/battle/${currentBattle.id}`);

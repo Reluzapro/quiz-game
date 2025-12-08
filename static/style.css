@@ -1078,6 +1078,8 @@ h3 {
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     transition: transform 0.3s ease, box-shadow 0.3s ease;
     text-align: center;
+    overflow: hidden;
+    word-wrap: break-word;
 }
 
 /* Small preview button inside shop color cards */
@@ -1126,6 +1128,14 @@ h3 {
 
 .emote-actions {
     margin-top: 10px;
+}
+
+.emote-actions .btn {
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* Émotes en Battle */
@@ -1232,6 +1242,33 @@ h3 {
         opacity: 0;
         transform: scale(0.8) translateY(-50px);
     }
+}
+
+/* Matchmaking Animation */
+.matchmaking-animation {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.spinner {
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 20px;
+    border: 4px solid rgba(102, 126, 234, 0.3);
+    border-top: 4px solid #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.matchmaking-animation p {
+    font-size: 18px;
+    color: #667eea;
+    font-weight: 500;
 }
 
 @media (max-width: 768px) {

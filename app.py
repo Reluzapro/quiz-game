@@ -1469,6 +1469,75 @@ def join_battle(code):
         'matiere': battle.matiere
     })
 
+@app.route('/api/battle/matchmaking', methods=['POST'])
+@login_required
+def battle_matchmaking():
+    """Trouve ou crée une battle publique pour le matchmaking."""
+    data = request.json or {}
+    matiere = data.get('matiere', 'thermo')
+    
+    if matiere not in MATIERES:
+        return jsonify({'error': 'Matière invalide'}), 400
+    
+    # Chercher une battle publique en attente pour cette matière
+    waiting_battle = Battle.query.filter_by(
+        matiere=matiere,
+        status='waiting',
+        player2_id=None
+    ).filter(
+        Battle.player1_id != current_user.id  # Pas sa propre battle
+    ).first()
+    
+    if waiting_battle:
+        # Rejoindre la battle existante
+        waiting_battle.player2_id = current_user.id
+        db.session.commit()
+        
+        # Notifier via SocketIO que le joueur 2 a rejoint
+        socketio.emit('player_joined', {
+            'player2_name': current_user.username
+        }, room=f'battle_{waiting_battle.id}')
+        
+        return jsonify({
+            'matched': True,
+            'battle_id': waiting_battle.id,
+            'code': waiting_battle.code
+        })
+    else:
+        # Créer une nouvelle battle publique
+        code = generate_battle_code()
+        battle = Battle(
+            code=code,
+            matiere=matiere,
+            player1_id=current_user.id
+        )
+        db.session.add(battle)
+        db.session.commit()
+        
+        return jsonify({
+            'waiting': True,
+            'battle_id': battle.id,
+            'code': code
+        })
+
+@app.route('/api/battle/cancel/<int:battle_id>', methods=['POST'])
+@login_required
+def cancel_battle_matchmaking(battle_id):
+    """Annule une battle en attente de matchmaking."""
+    battle = Battle.query.get(battle_id)
+    
+    if not battle:
+        return jsonify({'error': 'Battle introuvable'}), 404
+    
+    # Seul le créateur peut annuler si personne n'a rejoint
+    if battle.player1_id != current_user.id or battle.player2_id is not None:
+        return jsonify({'error': 'Impossible d\'annuler cette battle'}), 403
+    
+    db.session.delete(battle)
+    db.session.commit()
+    
+    return jsonify({'success': True})
+
 @app.route('/api/battle/<int:battle_id>', methods=['GET'])
 @login_required
 def get_battle(battle_id):
@@ -1606,6 +1675,40 @@ def handle_battle_end(data):
         if elapsed >= 300:  # 5 minutes
             battle.status = 'finished'
             battle.end_time = datetime.utcnow()
+            
+            # Ajouter les scores au score total des joueurs
+            if battle.player1:
+                battle.player1.add_score(battle.player1_score)
+            if battle.player2:
+                battle.player2.add_score(battle.player2_score)
+            
+            # Sauvegarder les parties Battle dans l'historique
+            if battle.player1:
+                battle_game1 = SavedGame(
+                    user_id=battle.player1_id,
+                    matiere=battle.matiere,
+                    game_data=json.dumps({'battle_id': battle.id}),
+                    score=battle.player1_score,
+                    total_questions=0,
+                    questions_correctes=0,
+                    is_completed=True,
+                    duration_seconds=300  # 5 minutes
+                )
+                db.session.add(battle_game1)
+            
+            if battle.player2:
+                battle_game2 = SavedGame(
+                    user_id=battle.player2_id,
+                    matiere=battle.matiere,
+                    game_data=json.dumps({'battle_id': battle.id}),
+                    score=battle.player2_score,
+                    total_questions=0,
+                    questions_correctes=0,
+                    is_completed=True,
+                    duration_seconds=300  # 5 minutes
+                )
+                db.session.add(battle_game2)
+            
             db.session.commit()
             
             # Déterminer le gagnant

@@ -207,13 +207,26 @@
                 <h1>⚔️ Mode Battle</h1>
                 <p>Affrontez un adversaire en temps réel pendant 5 minutes !</p>
                 <div class="battle-options">
-                    <button class="btn btn-primary btn-large" onclick="createBattle()">🎮 Créer une Battle</button>
+                    <button class="btn btn-primary btn-large" onclick="startMatchmaking()">🎯 Matchmaking Automatique</button>
+                    <button class="btn btn-primary btn-large" onclick="createBattle()">🎮 Créer une Battle Privée</button>
                     <div class="join-battle">
                         <input type="text" id="battle-code-input" placeholder="CODE" maxlength="6" style="text-transform: uppercase;">
-                        <button class="btn btn-success" onclick="joinBattle()">Rejoindre</button>
+                        <button class="btn btn-success" onclick="joinBattle()">Rejoindre avec Code</button>
                     </div>
                 </div>
                 <button class="btn btn-secondary btn-large" onclick="restartGame()">Retour</button>
+            </div>
+        </div>
+
+        <!-- Écran Matchmaking -->
+        <div id="matchmaking-screen" class="screen">
+            <div class="card">
+                <h1>🎯 Recherche d'adversaire...</h1>
+                <div class="matchmaking-animation">
+                    <div class="spinner"></div>
+                    <p>Recherche d'un adversaire en cours...</p>
+                </div>
+                <button class="btn btn-secondary btn-large" onclick="cancelMatchmaking()">Annuler</button>
             </div>
         </div>
 
