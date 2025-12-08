@@ -267,9 +267,29 @@ class Battle(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# Créer les tables
+# Créer les tables et effectuer les migrations
 with app.app_context():
     db.create_all()
+    
+    # Migration: Ajouter la colonne is_public si elle n'existe pas
+    try:
+        from sqlalchemy import text, inspect
+        inspector = inspect(db.engine)
+        columns = [col['name'] for col in inspector.get_columns('battle')]
+        
+        if 'is_public' not in columns:
+            print("🔨 Migration: Ajout de la colonne is_public...")
+            with db.engine.connect() as conn:
+                conn.execute(text("""
+                    ALTER TABLE battle 
+                    ADD COLUMN is_public BOOLEAN DEFAULT FALSE
+                """))
+                conn.commit()
+                print("✅ Colonne is_public ajoutée avec succès!")
+        else:
+            print("✅ Colonne is_public existe déjà")
+    except Exception as e:
+        print(f"⚠️ Erreur lors de la migration: {e}")
 
 # Mapping pour compatibilité avec ancien code 'thermo' -> 'physique_thermo'
 MATIERE_ALIASES = {
