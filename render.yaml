@@ -2,7 +2,7 @@ services:
   - type: web
     name: quiz-game
     runtime: python
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt && python3 migrate_add_is_public.py
     startCommand: gunicorn -c gunicorn_config.py wsgi:application
     envVars:
       - key: PYTHON_VERSION
