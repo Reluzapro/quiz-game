@@ -5,6 +5,10 @@
 import eventlet
 eventlet.monkey_patch()
 
+# Supprimer les warnings socket non critiques
+import warnings
+warnings.filterwarnings('ignore', message='.*Bad file descriptor.*')
+
 from flask import Flask, render_template, jsonify, request, session, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -17,9 +21,13 @@ import os
 import uuid
 import json
 import string
+import logging
 from datetime import datetime
 from pathlib import Path
 from config import Config
+
+# Réduire le niveau de log pour eventlet/socket
+logging.getLogger('eventlet.wsgi.server').setLevel(logging.WARNING)
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -33,7 +41,15 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
 }
 
 db = SQLAlchemy(app)
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+socketio = SocketIO(
+    app, 
+    cors_allowed_origins="*", 
+    async_mode='eventlet',
+    logger=False,  # Désactive les logs verbeux de SocketIO
+    engineio_logger=False,  # Désactive les logs verbeux de Engine.IO
+    ping_timeout=60,
+    ping_interval=25
+)
 login_manager = LoginManager(app)
 login_manager.login_view = 'auth_page'
 login_manager.login_message = None
@@ -1482,6 +1498,15 @@ def get_battle(battle_id):
 def handle_connect():
     """Gère la connexion d'un client."""
     print(f'Client connecté: {request.sid}')
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    """Gère la déconnexion d'un client."""
+    try:
+        print(f'Client déconnecté: {request.sid}')
+    except Exception as e:
+        # Ignorer les erreurs de déconnexion
+        pass
 
 @socketio.on('join_battle')
 def handle_join_battle(data):
