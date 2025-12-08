@@ -22,7 +22,7 @@ import uuid
 import json
 import string
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from config import Config
 
@@ -1360,6 +1360,13 @@ def save_game():
     
     game = games[game_id]
     matiere = game.get('matiere', 'thermo')
+    timer_minutes = game.get('timer_minutes', 0)
+    start_time = game.get('start_time')
+    
+    # Calculer le temps écoulé pour les parties chronométrées
+    elapsed_seconds = 0
+    if timer_minutes > 0 and start_time:
+        elapsed_seconds = int((datetime.utcnow() - start_time).total_seconds())
     
     game_data = {
         'questions': game['questions'],
@@ -1367,7 +1374,9 @@ def save_game():
         'score': game['score'],
         'questions_correctes': game.get('questions_correctes', []),
         'questions_a_reviser': game.get('questions_a_reviser', []),
-        'reponses_restantes': game.get('reponses_restantes', [])
+        'reponses_restantes': game.get('reponses_restantes', []),
+        'timer_minutes': timer_minutes,
+        'elapsed_seconds': elapsed_seconds
     }
     
     # Supprimer ancienne sauvegarde non terminée de cette matière
@@ -1482,6 +1491,15 @@ def restore_game():
     game_data = json.loads(saved_game.game_data)
     game_id = str(uuid.uuid4())
     
+    # Récupérer les infos du timer
+    timer_minutes = game_data.get('timer_minutes', 0)
+    elapsed_seconds = game_data.get('elapsed_seconds', 0)
+    
+    # Calculer le nouveau start_time en soustrayant le temps déjà écoulé
+    start_time = None
+    if timer_minutes > 0:
+        start_time = datetime.utcnow() - timedelta(seconds=elapsed_seconds)
+    
     games[game_id] = {
         'user_id': current_user.id,
         'username': current_user.username,
@@ -1491,7 +1509,9 @@ def restore_game():
         'score': game_data['score'],
         'reponses_restantes': game_data.get('reponses_restantes', []),
         'questions_correctes': game_data.get('questions_correctes', []),
-        'questions_a_reviser': game_data.get('questions_a_reviser', [])
+        'questions_a_reviser': game_data.get('questions_a_reviser', []),
+        'timer_minutes': timer_minutes,
+        'start_time': start_time
     }
     
     session['game_id'] = game_id
@@ -1503,7 +1523,8 @@ def restore_game():
         'score': game_data['score'],
         'matiere': matiere,
         'matiere_nom': MATIERES[matiere]['nom'],
-        'matiere_emoji': MATIERES[matiere]['emoji']
+        'matiere_emoji': MATIERES[matiere]['emoji'],
+        'timer_minutes': timer_minutes
     })
 
 # ==================== MODE BATTLE ====================
@@ -1862,13 +1883,16 @@ def handle_send_emote(data):
     if emote_id in EMOTES:
         emote_data = EMOTES[emote_id]
         
-        # Envoyer l'émote à tous les participants du battle
+        # Déterminer l'adversaire
+        opponent_id = battle.player2_id if current_user.id == battle.player1_id else battle.player1_id
+        
+        # Envoyer l'émote UNIQUEMENT à l'adversaire (broadcast=False pour exclure l'expéditeur)
         emit('emote_received', {
             'sender': current_user.username,
             'emote_id': emote_id,
             'emoji': emote_data['emoji'],
             'nom': emote_data['nom']
-        }, room=f'battle_{battle_id}')
+        }, room=f'battle_{battle_id}', include_self=False)
 
 if __name__ == '__main__':
     socketio.run(app, debug=True, host='0.0.0.0', port=5001)

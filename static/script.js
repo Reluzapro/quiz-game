@@ -695,6 +695,13 @@ async function resumeGame() {
             if (data.matiere) {
                 currentMatiere = data.matiere;
             }
+            
+            // Relancer le timer si c'était une partie chronométrée
+            if (data.timer_minutes && data.timer_minutes > 0) {
+                timerEnabled = true;
+                startTimer();
+            }
+            
             showScreen('game-screen');
             loadQuestion();
         }
