@@ -1297,10 +1297,10 @@ function applyButtonColor(couleur, couleurHover) {
     
     styleElement.textContent = `
         .btn-success {
-            background-color: ${couleur} !important;
+            background: ${couleur} !important;
         }
         .btn-success:hover {
-            background-color: ${couleurHover} !important;
+            background: ${couleurHover} !important;
         }
     `;
 }
