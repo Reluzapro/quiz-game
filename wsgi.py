@@ -14,8 +14,8 @@ if project_home not in sys.path:
 # Import the Flask app and SocketIO
 from app import app, socketio
 
-# IMPORTANT: Pour Gunicorn avec eventlet, utiliser socketio comme application
-application = socketio
+# IMPORTANT: Pour Gunicorn avec eventlet, on wrappe l'app Flask avec SocketIO
+application = app
 
 if __name__ == "__main__":
     socketio.run(app)
