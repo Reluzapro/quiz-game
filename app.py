@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+# IMPORTANT: Monkey patch eventlet AVANT tous les autres imports
+import eventlet
+eventlet.monkey_patch()
+
 from flask import Flask, render_template, jsonify, request, session, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy.pool import NullPool
 import csv
 import random
 import os
@@ -18,6 +23,11 @@ from config import Config
 
 app = Flask(__name__)
 app.config.from_object(Config)
+
+# Configuration SQLAlchemy pour eventlet - utilise NullPool pour éviter les problèmes de threading
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'poolclass': NullPool,
+}
 
 db = SQLAlchemy(app)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
