@@ -845,7 +845,7 @@ async function startMatchmaking() {
         }
         
         if (data.matched) {
-            // Match trouvé immédiatement
+            // Match trouvé immédiatement - Les deux joueurs sont prêts automatiquement
             currentBattle = {
                 id: data.battle_id,
                 code: data.code
@@ -853,8 +853,11 @@ async function startMatchmaking() {
             currentBattleId = data.battle_id;
             
             socket.emit('join_battle', { battle_id: data.battle_id });
-            await loadBattleInfo(data.battle_id);
-            showScreen('battle-waiting-screen');
+            
+            // Attendre un peu pour la synchronisation Socket.IO puis lancer directement
+            setTimeout(() => {
+                startBattleGame();
+            }, 1000);
         } else if (data.waiting) {
             // En attente d'un match
             currentBattle = {
@@ -872,10 +875,12 @@ async function startMatchmaking() {
                     const checkResponse = await fetch(`/api/battle/${data.battle_id}`);
                     const checkData = await checkResponse.json();
                     
-                    if (checkData.player2_name) {
+                    if (checkData.player2_name && checkData.player1_ready && checkData.player2_ready) {
                         clearInterval(matchmakingInterval);
-                        await loadBattleInfo(data.battle_id);
-                        showScreen('battle-waiting-screen');
+                        // Les deux sont prêts, lancer directement la battle
+                        setTimeout(() => {
+                            startBattleGame();
+                        }, 1000);
                     }
                 } catch (error) {
                     console.error('Erreur matchmaking:', error);

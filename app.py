@@ -201,6 +201,7 @@ class Battle(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     code = db.Column(db.String(6), unique=True, nullable=False)  # Code unique à 6 caractères
     matiere = db.Column(db.String(50), nullable=False)
+    is_public = db.Column(db.Boolean, default=False)  # True pour matchmaking, False pour battles privées
     player1_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     player2_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     player1_score = db.Column(db.Integer, default=0)
@@ -1479,10 +1480,11 @@ def battle_matchmaking():
     if matiere not in MATIERES:
         return jsonify({'error': 'Matière invalide'}), 400
     
-    # Chercher une battle publique en attente pour cette matière
+    # Chercher une battle publique en attente pour cette matière (UNIQUEMENT publiques)
     waiting_battle = Battle.query.filter_by(
         matiere=matiere,
         status='waiting',
+        is_public=True,  # Seulement les battles de matchmaking
         player2_id=None
     ).filter(
         Battle.player1_id != current_user.id  # Pas sa propre battle
@@ -1491,6 +1493,9 @@ def battle_matchmaking():
     if waiting_battle:
         # Rejoindre la battle existante
         waiting_battle.player2_id = current_user.id
+        # Marquer automatiquement les deux joueurs comme prêts pour le matchmaking
+        waiting_battle.player1_ready = True
+        waiting_battle.player2_ready = True
         db.session.commit()
         
         # Notifier via SocketIO que le joueur 2 a rejoint
@@ -1509,6 +1514,7 @@ def battle_matchmaking():
         battle = Battle(
             code=code,
             matiere=matiere,
+            is_public=True,  # Marquer comme battle publique
             player1_id=current_user.id
         )
         db.session.add(battle)
