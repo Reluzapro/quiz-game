@@ -24,9 +24,12 @@ from config import Config
 app = Flask(__name__)
 app.config.from_object(Config)
 
-# Configuration SQLAlchemy pour eventlet - utilise NullPool pour éviter les problèmes de threading
+# Configuration SQLAlchemy pour eventlet - QueuePool avec pool_pre_ping pour détecter les connexions mortes
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    'poolclass': NullPool,
+    'pool_size': 5,
+    'max_overflow': 10,
+    'pool_pre_ping': True,  # Vérifie que la connexion est vivante avant utilisation
+    'pool_recycle': 300,    # Recycle les connexions après 5 minutes
 }
 
 db = SQLAlchemy(app)

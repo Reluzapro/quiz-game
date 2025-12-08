@@ -22,9 +22,9 @@ loglevel = "info"
 # Process naming
 proc_name = "quiz-game"
 
-# Memory optimization
-max_requests = 1000  # Redémarre le worker après 1000 requêtes pour libérer la RAM
-max_requests_jitter = 50
+# Memory optimization - désactivé pour éviter les redémarrages intempestifs
+max_requests = 0  # 0 = pas de redémarrage automatique (économise les coupures)
+max_requests_jitter = 0
 
 # Preload (désactivé pour économiser la RAM)
 preload_app = False
