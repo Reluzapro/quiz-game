@@ -305,11 +305,19 @@ async function loadQuestion() {
         }
         
         // Mettre à jour l'interface
-        document.getElementById('question-text').textContent = data.question;
-        document.getElementById('answer-text').textContent = data.reponse_proposee;
+        document.getElementById('question-text').innerHTML = data.question;
+        document.getElementById('answer-text').innerHTML = data.reponse_proposee;
         document.getElementById('score').textContent = data.score;
         document.getElementById('question-counter').textContent = 
             `Question ${data.question_number}/${data.total_questions}`;
+        
+        // Rendre les formules LaTeX avec MathJax
+        if (typeof MathJax !== 'undefined' && MathJax.typesetPromise) {
+            MathJax.typesetPromise([
+                document.getElementById('question-text'),
+                document.getElementById('answer-text')
+            ]).catch((err) => console.error('Erreur MathJax:', err));
+        }
         
         // Afficher le nombre de réponses restantes
         const remainingDiv = document.getElementById('remaining-answers');
@@ -880,8 +888,16 @@ async function loadBattleQuestion() {
             return;
         }
         
-        document.getElementById('battle-question-text').textContent = data.question;
-        document.getElementById('battle-answer-text').textContent = data.reponse_proposee;
+        document.getElementById('battle-question-text').innerHTML = data.question;
+        document.getElementById('battle-answer-text').innerHTML = data.reponse_proposee;
+        
+        // Rendre les formules LaTeX avec MathJax
+        if (typeof MathJax !== 'undefined' && MathJax.typesetPromise) {
+            MathJax.typesetPromise([
+                document.getElementById('battle-question-text'),
+                document.getElementById('battle-answer-text')
+            ]).catch((err) => console.error('Erreur MathJax:', err));
+        }
         
         const remainingDiv = document.getElementById('battle-remaining-answers');
         if (data.reponses_restantes > 1) {
