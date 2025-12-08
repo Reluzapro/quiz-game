@@ -54,22 +54,68 @@ login_manager = LoginManager(app)
 login_manager.login_view = 'auth_page'
 login_manager.login_message = None
 
-# Configuration des matières disponibles
+# Configuration des matières disponibles avec hiérarchie
 MATIERES = {
-    'thermo': {
+    'maths': {
+        'nom': 'Mathématiques',
+        'fichier': 'Questions_maths.csv',
+        'emoji': '📐',
+        'categorie': None  # Matière directe (pas de sous-catégories)
+    },
+    'physique_thermo': {
         'nom': 'Thermodynamique',
         'fichier': 'Questions.csv',
-        'emoji': '🔥'
-    },
-    'elec': {
-        'nom': 'Électricité',
-        'fichier': 'Questions_elec.csv',
-        'emoji': '⚡'
+        'emoji': '🔥',
+        'categorie': 'physique',  # Sous-catégorie de Physique
+        'categorie_nom': 'Physique',
+        'categorie_emoji': '🔬'
     },
     'meca': {
         'nom': 'Mécanique',
         'fichier': 'Questions_meca.csv',
-        'emoji': '⚙️'
+        'emoji': '⚙️',
+        'categorie': None
+    },
+    'elec': {
+        'nom': 'Électricité',
+        'fichier': 'Questions_elec.csv',
+        'emoji': '⚡',
+        'categorie': None
+    },
+    'anglais': {
+        'nom': 'Anglais',
+        'fichier': 'Questions_anglais.csv',
+        'emoji': '🇬🇧',
+        'categorie': None
+    }
+}
+
+# Catégories principales (pour l'affichage du menu)
+CATEGORIES = {
+    'maths': {
+        'nom': 'Mathématiques',
+        'emoji': '📐',
+        'matieres': ['maths']
+    },
+    'physique': {
+        'nom': 'Physique',
+        'emoji': '🔬',
+        'matieres': ['physique_thermo']  # Pour l'instant juste thermo, tu ajouteras d'autres plus tard
+    },
+    'meca': {
+        'nom': 'Mécanique',
+        'emoji': '⚙️',
+        'matieres': ['meca']
+    },
+    'elec': {
+        'nom': 'Électricité',
+        'emoji': '⚡',
+        'matieres': ['elec']
+    },
+    'anglais': {
+        'nom': 'Anglais',
+        'emoji': '🇬🇧',
+        'matieres': ['anglais']
     }
 }
 
@@ -225,10 +271,21 @@ def load_user(user_id):
 with app.app_context():
     db.create_all()
 
-def charger_questions(matiere='thermo'):
+# Mapping pour compatibilité avec ancien code 'thermo' -> 'physique_thermo'
+MATIERE_ALIASES = {
+    'thermo': 'physique_thermo'
+}
+
+def normalize_matiere(matiere):
+    """Normalise le code de matière (gère les anciens codes)."""
+    return MATIERE_ALIASES.get(matiere, matiere)
+
+def charger_questions(matiere='physique_thermo'):
     """Charge les questions depuis le fichier CSV de la matière."""
+    matiere = normalize_matiere(matiere)
+    
     if matiere not in MATIERES:
-        matiere = 'thermo'
+        matiere = 'physique_thermo'
     
     fichier = MATIERES[matiere]['fichier']
     fichier_path = os.path.join(os.path.dirname(__file__), fichier)
@@ -548,6 +605,33 @@ def get_current_user():
             'username': current_user.username
         })
     return jsonify({'authenticated': False})
+
+@app.route('/api/categories', methods=['GET'])
+@login_required
+def get_categories():
+    """Retourne la liste des catégories et leurs matières."""
+    categories_list = []
+    for cat_id, cat_data in CATEGORIES.items():
+        # Récupérer les matières de cette catégorie
+        matieres_list = []
+        for matiere_id in cat_data['matieres']:
+            if matiere_id in MATIERES:
+                matiere_info = MATIERES[matiere_id]
+                matieres_list.append({
+                    'id': matiere_id,
+                    'nom': matiere_info['nom'],
+                    'emoji': matiere_info['emoji']
+                })
+        
+        categories_list.append({
+            'id': cat_id,
+            'nom': cat_data['nom'],
+            'emoji': cat_data['emoji'],
+            'matieres': matieres_list,
+            'has_subcategories': len(matieres_list) > 1  # True si plusieurs sous-catégories
+        })
+    
+    return jsonify({'categories': categories_list})
 
 @app.route('/api/start', methods=['POST'])
 @login_required

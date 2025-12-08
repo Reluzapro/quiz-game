@@ -17,7 +17,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
 async function loadMatieres() {
     try {
-        const response = await fetch('/api/matieres');
+        const response = await fetch('/api/categories');
         const data = await response.json();
         
         const container = document.querySelector('.matiere-selector');
@@ -26,26 +26,65 @@ async function loadMatieres() {
         // Vider le conteneur
         container.innerHTML = '';
         
-        // Créer les boutons pour chaque matière
-        data.matieres.forEach((matiere, index) => {
-            const button = document.createElement('button');
-            button.className = 'btn-matiere' + (index === 0 ? ' active' : '');
-            button.id = `btn-${matiere.code}`;
-            button.onclick = () => selectMatiere(matiere.code);
-            
-            button.innerHTML = `
-                <div class="matiere-emoji">${matiere.emoji}</div>
-                <div class="matiere-name">${matiere.nom}</div>
-                <div class="matiere-count">${matiere.nb_questions} question${matiere.nb_questions > 1 ? 's' : ''}</div>
-            `;
-            
-            container.appendChild(button);
-        });
+        let isFirst = true;
         
-        // Définir la première matière comme matière par défaut
-        if (data.matieres.length > 0) {
-            currentMatiere = data.matieres[0].code;
-        }
+        // Créer les boutons pour chaque catégorie
+        data.categories.forEach(categorie => {
+            if (categorie.has_subcategories) {
+                // Catégorie avec sous-catégories (ex: Physique)
+                const categoryDiv = document.createElement('div');
+                categoryDiv.className = 'category-group';
+                
+                const categoryTitle = document.createElement('h3');
+                categoryTitle.className = 'category-title';
+                categoryTitle.innerHTML = `${categorie.emoji} ${categorie.nom}`;
+                categoryDiv.appendChild(categoryTitle);
+                
+                const subcategoriesDiv = document.createElement('div');
+                subcategoriesDiv.className = 'subcategories';
+                
+                categorie.matieres.forEach(matiere => {
+                    const button = document.createElement('button');
+                    button.className = 'btn-matiere' + (isFirst ? ' active' : '');
+                    button.id = `btn-${matiere.id}`;
+                    button.onclick = () => selectMatiere(matiere.id);
+                    
+                    button.innerHTML = `
+                        <div class="matiere-emoji">${matiere.emoji}</div>
+                        <div class="matiere-name">${matiere.nom}</div>
+                    `;
+                    
+                    subcategoriesDiv.appendChild(button);
+                    
+                    if (isFirst) {
+                        currentMatiere = matiere.id;
+                        isFirst = false;
+                    }
+                });
+                
+                categoryDiv.appendChild(subcategoriesDiv);
+                container.appendChild(categoryDiv);
+            } else {
+                // Catégorie directe (ex: Maths, Meca, Elec, Anglais)
+                const matiere = categorie.matieres[0];
+                const button = document.createElement('button');
+                button.className = 'btn-matiere' + (isFirst ? ' active' : '');
+                button.id = `btn-${matiere.id}`;
+                button.onclick = () => selectMatiere(matiere.id);
+                
+                button.innerHTML = `
+                    <div class="matiere-emoji">${matiere.emoji}</div>
+                    <div class="matiere-name">${matiere.nom}</div>
+                `;
+                
+                container.appendChild(button);
+                
+                if (isFirst) {
+                    currentMatiere = matiere.id;
+                    isFirst = false;
+                }
+            }
+        });
     } catch (error) {
         console.error('Erreur lors du chargement des matières:', error);
     }

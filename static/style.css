@@ -81,14 +81,36 @@ h3 {
 }
 
 .matiere-selector {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
     margin: 20px 0;
 }
 
-.btn-matiere {
+.category-group {
     background: #f8f9fa;
+    padding: 15px;
+    border-radius: 15px;
+    border: 2px solid #e9ecef;
+}
+
+.category-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: #333;
+    margin: 0 0 15px 0;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #e9ecef;
+}
+
+.subcategories {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+}
+
+.btn-matiere {
+    background: white;
     border: 3px solid #e9ecef;
     border-radius: 15px;
     padding: 20px;
