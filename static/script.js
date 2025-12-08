@@ -4,6 +4,8 @@ let timerInterval = null;
 let timerEnabled = false;
 let currentScoreTab = 'single'; // Type de score affiché: 'single' ou 'total'
 let userHintsCount = 0; // Nombre d'indices de l'utilisateur
+// Durée en ms entre question/réponse et chargement de la suivante
+const QUESTION_TRANSITION_DELAY = 600; // réduit par rapport à 1500ms
 
 // Vérifier l'authentification et les sauvegardes au chargement
 window.addEventListener('DOMContentLoaded', () => {
@@ -372,10 +374,10 @@ async function submitAnswer(answer) {
             document.getElementById('buttons').style.display = 'none';
             document.getElementById('next-btn').style.display = 'block';
         } else {
-            // Recharger la question avec la nouvelle réponse
+            // Recharger la question avec la nouvelle réponse (délais réduit pour UX plus fluide)
             setTimeout(() => {
                 loadQuestion();
-            }, 1500);
+            }, QUESTION_TRANSITION_DELAY);
         }
         
     } catch (error) {
@@ -1329,8 +1331,9 @@ async function loadButtonColors() {
             }
             
             colorCard.innerHTML = `
-                <div class="theme-preview" style="background: ${color.couleur};">
+                <div class="theme-preview" style="background: ${color.couleur}; display:flex; align-items:center; justify-content:center;">
                     ${badge}
+                    <button class="sample-btn" style="background:${color.couleur};">Aperçu</button>
                 </div>
                 <div class="theme-name">${color.nom}</div>
                 <div class="theme-description">${color.description}</div>
