@@ -1028,9 +1028,15 @@ def logout():
 def get_current_user():
     """Retourne l'utilisateur actuellement connecté."""
     if current_user.is_authenticated:
+        # Récupérer les infos du fond d'écran équipé
+        bg_color_id = current_user.current_background_color
+        bg_color_data = BACKGROUND_COLORS.get(bg_color_id, {})
+        
         return jsonify({
             'authenticated': True,
-            'username': current_user.username
+            'username': current_user.username,
+            'background_color': bg_color_id,
+            'background_gradient': bg_color_data.get('gradient', 'linear-gradient(135deg, #f0f0f0 0%, #ffffff 100%)')
         })
     return jsonify({'authenticated': False})
 

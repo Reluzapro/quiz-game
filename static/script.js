@@ -191,9 +191,27 @@ async function checkAuth() {
         
         // Afficher le nom d'utilisateur
         document.getElementById('username-display').textContent = `👤 ${data.username}`;
+        
+        // Appliquer le fond d'écran
+        if (data.background_gradient) {
+            applyBackgroundColor(data.background_gradient);
+        }
     } catch (error) {
         console.error('Erreur:', error);
         window.location.href = '/auth';
+    }
+}
+
+function applyBackgroundColor(gradient) {
+    // Appliquer le gradient de fond d'écran au game-area
+    const gameArea = document.getElementById('game-screen');
+    if (gameArea) {
+        gameArea.style.background = gradient;
+    }
+    // Aussi appliquer au screen de bataille
+    const battleArea = document.getElementById('battle-screen');
+    if (battleArea) {
+        battleArea.style.background = gradient;
     }
 }
 
@@ -1805,6 +1823,10 @@ async function equipBackgroundColor(colorId) {
         
         if (response.ok) {
             alert(data.message);
+            // Appliquer le fond d'écran immédiatement
+            if (data.gradient) {
+                applyBackgroundColor(data.gradient);
+            }
             showShop();
         } else {
             alert(data.error || 'Erreur lors de l\'équipement');
