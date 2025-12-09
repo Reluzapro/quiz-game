@@ -2447,7 +2447,7 @@ def handle_send_emote(data):
         opponent_id = battle.player2_id if current_user.id == battle.player1_id else battle.player1_id
         
         # Envoyer l'émote UNIQUEMENT à l'adversaire (broadcast=False pour exclure l'expéditeur)
-        emit('emote_received', {
+        emit('receive_emote', {
             'sender': current_user.username,
             'emote_id': emote_id,
             'emoji': emote_data['emoji'],

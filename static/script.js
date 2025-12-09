@@ -833,6 +833,10 @@ function initSocket() {
         socket.on('battle_finished', (data) => {
             showBattleResults(data);
         });
+        
+        socket.on('receive_emote', (data) => {
+            displayReceivedEmote(data);
+        });
     }
 }
 
@@ -1953,11 +1957,6 @@ function displayReceivedEmote(data) {
             emoteContainer.remove();
         }, 600); // Durée de l'animation de disparition
     }, 3000);
-}
-
-// Ajouter le listener Socket.IO pour recevoir les émotes
-if (typeof socket !== 'undefined') {
-    socket.on('emote_received', displayReceivedEmote);
 }
 
 // ==================== PANNEAU DÉVELOPPEUR ====================
