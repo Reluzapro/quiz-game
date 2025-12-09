@@ -343,6 +343,12 @@ async function loadQuestion() {
             return;
         }
         
+        // Afficher la source (matière / dossier) au-dessus de la question si fournie
+        const sourceDiv = document.getElementById('question-source');
+        if (sourceDiv) {
+            sourceDiv.textContent = data.source_emoji ? `${data.source_emoji} ${data.source_nom}` : data.source_nom || '';
+        }
+
         // Mettre à jour l'interface
         document.getElementById('question-text').innerHTML = data.question;
         document.getElementById('answer-text').innerHTML = data.reponse_proposee;

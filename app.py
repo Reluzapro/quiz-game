@@ -58,33 +58,31 @@ login_manager.login_message = None
 MATIERES = {
     'maths': {
         'nom': 'Mathématiques',
-        'fichier': 'Questions_maths.csv',
+        'fichier': os.path.join('Questions', 'Maths', 'Questions_maths.csv'),
         'emoji': '📐',
         'categorie': None  # Matière directe (pas de sous-catégories)
     },
     'physique_thermo': {
         'nom': 'Thermodynamique',
-        'fichier': 'Questions.csv',
+        'fichier': os.path.join('Questions', 'Physique', 'Questions.csv'),
         'emoji': '🔥',
         'categorie': 'physique',  # Sous-catégorie de Physique
-        'categorie_nom': 'Physique',
-        'categorie_emoji': '🔬'
     },
     'meca': {
         'nom': 'Mécanique',
-        'fichier': 'Questions_meca.csv',
+        'fichier': os.path.join('Questions', 'Meca', 'Questions_meca.csv'),
         'emoji': '⚙️',
         'categorie': None
     },
     'elec': {
         'nom': 'Électricité',
-        'fichier': 'Questions_elec.csv',
+        'fichier': os.path.join('Questions', 'Elec', 'Questions_elec.csv'),
         'emoji': '⚡',
         'categorie': None
     },
     'anglais': {
         'nom': 'Anglais',
-        'fichier': 'Questions_anglais.csv',
+        'fichier': os.path.join('Questions', 'Anglais', 'Questions_anglais.csv'),
         'emoji': '🇬🇧',
         'categorie': None
     }
@@ -321,7 +319,8 @@ def charger_questions(matiere='physique_thermo'):
                 question = {
                     'question': ligne[0],
                     'bonne_reponse': ligne[1],
-                    'mauvaises_reponses': [ligne[2], ligne[3], ligne[4]]
+                    'mauvaises_reponses': [ligne[2], ligne[3], ligne[4]],
+                    'source_matiere': matiere
                 }
                 questions.append(question)
     return questions
@@ -658,41 +657,53 @@ def get_categories():
 def start_game():
     """Démarre une nouvelle partie."""
     data = request.json or {}
-    matiere = data.get('matiere', 'thermo')
+    matiere = data.get('matiere', 'physique_thermo')
     timer_minutes = data.get('timer_minutes', 0)  # 0 = mode classique, 5 ou 10 = mode chronométré
-    
-    if matiere not in MATIERES:
+    mode = data.get('mode', 'single')  # 'single', 'mixed_category', 'mixed_all'
+
+    if matiere not in MATIERES and mode == 'single':
         return jsonify({'error': 'Matière invalide'}), 400
-    
-    all_questions = charger_questions(matiere)
-    
+
+    # Charger les questions selon le mode demandé
+    all_questions = []
+    if mode == 'mixed_all':
+        for m in MATIERES.keys():
+            all_questions.extend(charger_questions(m))
+    elif mode == 'mixed_category':
+        normalized = normalize_matiere(matiere)
+        cat = MATIERES.get(normalized, {}).get('categorie')
+        if cat and cat in CATEGORIES:
+            for m in CATEGORIES[cat]['matieres']:
+                all_questions.extend(charger_questions(m))
+        else:
+            all_questions = charger_questions(matiere)
+    else:
+        all_questions = charger_questions(matiere)
+
     if not all_questions:
-        return jsonify({'error': f'Aucune question trouvée pour {MATIERES[matiere]["nom"]}'}), 400
-    
+        return jsonify({'error': 'Aucune question trouvée'}), 400
+
     # En mode chronométré, filtrer pour ne garder que les questions non réussies
     if timer_minutes > 0:
         questions_to_practice = []
         for q in all_questions:
+            source = q.get('source_matiere', matiere)
             progress = QuestionProgress.query.filter_by(
                 user_id=current_user.id,
-                matiere=matiere,
+                matiere=source,
                 question_text=q['question']
             ).first()
-            
-            # Inclure si jamais vue OU échouée
             if not progress or progress.status in ['never_seen', 'failed']:
                 questions_to_practice.append(q)
-        
         questions = questions_to_practice if questions_to_practice else all_questions
     else:
         questions = all_questions
-    
+
     random.shuffle(questions)
-    
+
     game_id = str(uuid.uuid4())
-    
     start_time = datetime.utcnow() if timer_minutes > 0 else None
-    
+
     games[game_id] = {
         'user_id': current_user.id,
         'username': current_user.username,
@@ -704,13 +715,14 @@ def start_game():
         'questions_correctes': [],
         'questions_a_reviser': [],
         'timer_minutes': timer_minutes,
-        'start_time': start_time
+        'start_time': start_time,
+        'mode': mode
     }
-    
+
     session['game_id'] = game_id
-    
-    mode = f"{timer_minutes} min" if timer_minutes > 0 else "classique"
-    print(f"Jeu démarré: {MATIERES[matiere]['nom']} ({len(questions)} questions), Mode: {mode}, ID: {game_id}, Joueur: {current_user.username}")
+
+    mode_str = f"{timer_minutes} min" if timer_minutes > 0 else "classique"
+    print(f"Jeu démarré: {len(questions)} questions, Mode: {mode} ({mode_str}), ID: {game_id}, Joueur: {current_user.username}")
     
     return jsonify({
         'success': True,
@@ -796,6 +808,12 @@ def get_question():
     # Sauvegarder la réponse proposée pour l'indice
     game['current_proposed_answer'] = reponse_proposee
     
+    # Informations sur la source (matière/fichier) pour affichage UI
+    source_code = question_data.get('source_matiere')
+    source_info = MATIERES.get(source_code, None)
+    source_nom = source_info['nom'] if source_info else source_code
+    source_emoji = source_info['emoji'] if source_info else ''
+
     return jsonify({
         'finished': False,
         'question': question_data['question'],
@@ -803,7 +821,10 @@ def get_question():
         'question_number': current_index + 1,
         'total_questions': len(questions),
         'score': game['score'],
-        'reponses_restantes': len(reponses_restantes)
+        'reponses_restantes': len(reponses_restantes),
+        'source_matiere': source_code,
+        'source_nom': source_nom,
+        'source_emoji': source_emoji
     })
 
 @app.route('/api/answer', methods=['POST'])
