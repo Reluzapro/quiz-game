@@ -299,6 +299,13 @@ h3 {
     letter-spacing: 1px;
 }
 
+.answer-with-emote {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    position: relative;
+}
+
 .answer-text {
     font-size: 1.2em;
     color: #495057;
@@ -307,6 +314,37 @@ h3 {
     border-radius: 10px;
     border-left: 4px solid #667eea;
     line-height: 1.6;
+    flex: 1;
+}
+
+.opponent-emotes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 30px;
+    align-items: center;
+}
+
+.opponent-emotes .received-emote-container {
+    margin: 0;
+}
+
+.opponent-emotes .received-emote {
+    padding: 8px 12px !important;
+    border-radius: 50% !important;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+}
+
+.emote-content-compact {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.emote-emoji-compact {
+    font-size: 40px;
+    line-height: 1;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
 }
 
 .remaining-info {
@@ -1223,30 +1261,79 @@ h3 {
     transform: translate(-50%, -50%);
     pointer-events: none;
     z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.received-emote-container {
+    width: 100%;
 }
 
 .received-emote {
-    animation: emoteAnimation 3s ease-out;
     text-align: center;
-    background: white;
-    padding: 20px;
-    border-radius: 12px;
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
-    margin-bottom: 10px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 30px 40px;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    transform: scale(0);
+    opacity: 0;
+    transition: none;
+}
+
+.received-emote.appear {
+    animation: emoteAppear 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.received-emote.disappear {
+    animation: emoteDisappear 0.6s ease-in forwards;
+}
+
+.emote-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.emote-emoji {
+    font-size: 80px;
+    line-height: 1;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
 }
 
 .emote-sender {
-    display: block;
-    font-weight: 600;
-    color: #667eea;
-    margin-bottom: 10px;
+    font-weight: 700;
+    color: white;
+    font-size: 16px;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    letter-spacing: 0.5px;
 }
 
-.emote-big {
-    font-size: 64px;
-    display: block;
+@keyframes emoteAppear {
+    0% {
+        transform: scale(0) rotateX(90deg);
+        opacity: 0;
+    }
+    100% {
+        transform: scale(1) rotateX(0);
+        opacity: 1;
+    }
 }
 
+@keyframes emoteDisappear {
+    0% {
+        transform: scale(1) rotateY(0deg);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(0.3) rotateY(90deg) translateY(-30px);
+        opacity: 0;
+    }
+}
+
+/* Ancien style gardé pour compatibilité (utilise emoteAnimation) */
 @keyframes emoteAnimation {
     0% {
         opacity: 0;

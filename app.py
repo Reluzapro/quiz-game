@@ -800,6 +800,146 @@ EMOTES = {
         'emoji': '👽',
         'prix': 175,
         'description': 'Bizarre!'
+    },
+    'sunglasses': {
+        'id': 'sunglasses',
+        'nom': '🕶️ Lunettes de soleil',
+        'emoji': '🕶️',
+        'prix': 150,
+        'description': 'Trop cool pour toi'
+    },
+    'muscle': {
+        'id': 'muscle',
+        'nom': '💪 Muscle',
+        'emoji': '💪',
+        'prix': 100,
+        'description': 'Force brute!'
+    },
+    'fire_heart': {
+        'id': 'fire_heart',
+        'nom': '❤️‍🔥 Cœur enflammé',
+        'emoji': '❤️‍🔥',
+        'prix': 200,
+        'description': 'Passion!'
+    },
+    'wave': {
+        'id': 'wave',
+        'nom': '👋 Salut',
+        'emoji': '👋',
+        'prix': 50,
+        'description': 'Hello!'
+    },
+    'detective': {
+        'id': 'detective',
+        'nom': '🕵️ Détective',
+        'emoji': '🕵️',
+        'prix': 175,
+        'description': 'Je t\'observe'
+    },
+    'wizard': {
+        'id': 'wizard',
+        'nom': '🧙 Magicien',
+        'emoji': '🧙',
+        'prix': 200,
+        'description': 'Magie!'
+    },
+    'unicorn': {
+        'id': 'unicorn',
+        'nom': '🦄 Licorne',
+        'emoji': '🦄',
+        'prix': 250,
+        'description': 'Magique!'
+    },
+    'dragon': {
+        'id': 'dragon',
+        'nom': '🐉 Dragon',
+        'emoji': '🐉',
+        'prix': 300,
+        'description': 'Redoutable!'
+    },
+    'ninja': {
+        'id': 'ninja',
+        'nom': '🥷 Ninja',
+        'emoji': '🥷',
+        'prix': 200,
+        'description': 'Discrétion'
+    },
+    'rocket_moon': {
+        'id': 'rocket_moon',
+        'nom': '🚀🌙 Fusée lune',
+        'emoji': '🚀',
+        'prix': 175,
+        'description': 'Vers la lune!'
+    },
+    'lightbulb': {
+        'id': 'lightbulb',
+        'nom': '💡 Ampoule',
+        'emoji': '💡',
+        'prix': 75,
+        'description': 'Excellente idée!'
+    },
+    'bomb': {
+        'id': 'bomb',
+        'nom': '💣 Bombe',
+        'emoji': '💣',
+        'prix': 150,
+        'description': 'BOOM!'
+    },
+    'spinning': {
+        'id': 'spinning',
+        'nom': '🌪️ Tourbillon',
+        'emoji': '🌪️',
+        'prix': 100,
+        'description': 'Vertigineux!'
+    },
+    'eyes_happy': {
+        'id': 'eyes_happy',
+        'nom': '😻 Chat heureux',
+        'emoji': '😻',
+        'prix': 100,
+        'description': 'Miaou!'
+    },
+    'fire_eyes': {
+        'id': 'fire_eyes',
+        'nom': '🔥👀 Yeux de feu',
+        'emoji': '🔥',
+        'prix': 125,
+        'description': 'Regardes bien!'
+    },
+    'sun': {
+        'id': 'sun',
+        'nom': '☀️ Soleil',
+        'emoji': '☀️',
+        'prix': 75,
+        'description': 'Éblouissant!'
+    },
+    'moon': {
+        'id': 'moon',
+        'nom': '🌙 Lune',
+        'emoji': '🌙',
+        'prix': 75,
+        'description': 'Minuit!'
+    },
+    'star_shine': {
+        'id': 'star_shine',
+        'nom': '✨ Étincelle',
+        'emoji': '✨',
+        'prix': 125,
+        'description': 'Brillant!'
+    },
+    'turtle': {
+        'id': 'turtle',
+        'nom': '🐢 Tortue',
+        'emoji': '🐢',
+        'prix': 100,
+        'description': 'Lent mais sûr'
+    },
+    'snail': {
+        'id': 'snail',
+        'nom': '🐌 Escargot',
+        'emoji': '🐌',
+        'prix': 100,
+        'description': 'Très lent!'
     }
 }
 

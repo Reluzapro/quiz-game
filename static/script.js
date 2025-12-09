@@ -1878,18 +1878,55 @@ function sendEmote(emoteId) {
 }
 
 function displayReceivedEmote(data) {
-    const display = document.getElementById('emote-display');
+    // Si en bataille, afficher à côté de la réponse
+    let display = document.getElementById('opponent-emotes-display');
+    if (!display || !display.parentElement) {
+        // Si pas en bataille, afficher au centre
+        display = document.getElementById('emote-display');
+    }
+    
+    if (!display) return;
+    
+    // Créer l'élément d'émote avec animation
+    const emoteContainer = document.createElement('div');
+    emoteContainer.className = 'received-emote-container';
+    
     const emoteElement = document.createElement('div');
     emoteElement.className = 'received-emote';
-    emoteElement.innerHTML = `
-        <span class="emote-sender">${data.sender}</span>
-        <span class="emote-big">${data.emoji}</span>
-    `;
-    display.appendChild(emoteElement);
     
-    // Supprimer après 3 secondes
+    // Pour les émotes à côté de la réponse, format plus compact
+    const isNextToAnswer = display.id === 'opponent-emotes-display';
+    
+    if (isNextToAnswer) {
+        emoteElement.innerHTML = `
+            <div class="emote-content-compact">
+                <div class="emote-emoji-compact">${data.emoji}</div>
+            </div>
+        `;
+    } else {
+        emoteElement.innerHTML = `
+            <div class="emote-content">
+                <div class="emote-emoji">${data.emoji}</div>
+                <div class="emote-sender">${data.sender}</div>
+            </div>
+        `;
+    }
+    
+    emoteContainer.appendChild(emoteElement);
+    display.appendChild(emoteContainer);
+    
+    // Trigger animation d'apparition
+    requestAnimationFrame(() => {
+        emoteElement.classList.add('appear');
+    });
+    
+    // Après 3 secondes, déclencher l'animation de disparition
     setTimeout(() => {
-        emoteElement.remove();
+        emoteElement.classList.add('disappear');
+        // Supprimer complètement après la fin de l'animation
+        setTimeout(() => {
+            emoteContainer.remove();
+        }, 600); // Durée de l'animation de disparition
     }, 3000);
 }
 
