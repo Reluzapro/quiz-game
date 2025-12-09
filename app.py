@@ -135,11 +135,13 @@ class User(UserMixin, db.Model):
     hints_count = db.Column(db.Integer, default=0)  # Nombre d'indices possédés
     current_theme = db.Column(db.String(50), default='default')  # Thème actuel équipé
     current_button_color = db.Column(db.String(50), default='default')  # Couleur des boutons
+    current_background_color = db.Column(db.String(50), default='default')  # Couleur du rectangle blanc
     owned_emotes = db.Column(db.Text, default='')  # Émotes possédées (JSON array)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     games = db.relationship('SavedGame', backref='user', lazy=True)
     owned_themes = db.relationship('UserTheme', backref='user', lazy=True)
     owned_button_colors = db.relationship('UserButtonColor', backref='user', lazy=True)
+    owned_background_colors = db.relationship('UserBackgroundColor', backref='user', lazy=True)
     
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -183,6 +185,21 @@ class User(UserMixin, db.Model):
             return True
         return False
     
+    def owns_background_color(self, color_id):
+        """Vérifie si l'utilisateur possède une couleur de background."""
+        if color_id == 'default':
+            return True
+        return UserBackgroundColor.query.filter_by(user_id=self.id, color_id=color_id).first() is not None
+    
+    def buy_background_color(self, color_id, price):
+        """Achète une couleur de background si l'utilisateur a assez de points."""
+        if self.total_score >= price and not self.owns_background_color(color_id):
+            self.total_score -= price
+            user_bg_color = UserBackgroundColor(user_id=self.id, color_id=color_id)
+            db.session.add(user_bg_color)
+            return True
+        return False
+    
     def get_owned_emotes(self):
         """Retourne la liste des émotes possédées."""
         if not self.owned_emotes:
@@ -215,6 +232,13 @@ class UserTheme(db.Model):
 
 class UserButtonColor(db.Model):
     """Couleurs de boutons possédées par l'utilisateur."""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    color_id = db.Column(db.String(50), nullable=False)
+    purchased_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class UserBackgroundColor(db.Model):
+    """Couleurs de background possédées par l'utilisateur."""
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     color_id = db.Column(db.String(50), nullable=False)
@@ -459,6 +483,127 @@ BUTTON_COLORS = {
     }
 }
 
+# Couleurs de background du rectangle blanc disponibles dans la boutique
+BACKGROUND_COLORS = {
+    'default': {
+        'id': 'default',
+        'nom': 'Blanc Standard',
+        'gradient': 'linear-gradient(135deg, #ffffff 0%, #f5f5f5 100%)',
+        'prix': 0,
+        'description': 'Le fond blanc classique'
+    },
+    'light_blue': {
+        'id': 'light_blue',
+        'nom': 'Bleu Clair',
+        'gradient': 'linear-gradient(135deg, #E3F2FD 0%, #BBDEFB 100%)',
+        'prix': 1000,
+        'description': 'Fond bleu pastel apaisant'
+    },
+    'light_green': {
+        'id': 'light_green',
+        'nom': 'Vert Clair',
+        'gradient': 'linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%)',
+        'prix': 1000,
+        'description': 'Fond vert nature'
+    },
+    'light_pink': {
+        'id': 'light_pink',
+        'nom': 'Rose Clair',
+        'gradient': 'linear-gradient(135deg, #FCE4EC 0%, #F8BBD0 100%)',
+        'prix': 1200,
+        'description': 'Fond rose délicat'
+    },
+    'light_purple': {
+        'id': 'light_purple',
+        'nom': 'Violet Clair',
+        'gradient': 'linear-gradient(135deg, #F3E5F5 0%, #E1BEE7 100%)',
+        'prix': 1200,
+        'description': 'Fond violet élégant'
+    },
+    'light_orange': {
+        'id': 'light_orange',
+        'nom': 'Orange Clair',
+        'gradient': 'linear-gradient(135deg, #FFF3E0 0%, #FFE0B2 100%)',
+        'prix': 1500,
+        'description': 'Fond orange chaleureux'
+    },
+    'light_yellow': {
+        'id': 'light_yellow',
+        'nom': 'Jaune Clair',
+        'gradient': 'linear-gradient(135deg, #FFFDE7 0%, #FFF9C4 100%)',
+        'prix': 1500,
+        'description': 'Fond jaune lumineux'
+    },
+    'pastel_sky': {
+        'id': 'pastel_sky',
+        'nom': 'Ciel Pastel',
+        'gradient': 'linear-gradient(135deg, #E0F7FA 0%, #B2EBF2 100%)',
+        'prix': 2000,
+        'description': 'Fond bleu ciel doux'
+    },
+    'pastel_mint': {
+        'id': 'pastel_mint',
+        'nom': 'Menthe Pastel',
+        'gradient': 'linear-gradient(135deg, #E0F2F1 0%, #B2DFDB 100%)',
+        'prix': 2000,
+        'description': 'Fond menthe rafraîchissant'
+    },
+    'gradient_sunset': {
+        'id': 'gradient_sunset',
+        'nom': 'Coucher Pastel',
+        'gradient': 'linear-gradient(135deg, #FFE8D6 0%, #FFCCB3 100%)',
+        'prix': 3000,
+        'description': 'Fond dégradé coucher doux'
+    },
+    'gradient_forest': {
+        'id': 'gradient_forest',
+        'nom': 'Forêt Légère',
+        'gradient': 'linear-gradient(135deg, #E8F5E9 0%, #A5D6A7 100%)',
+        'prix': 3000,
+        'description': 'Fond vert nature lumineux'
+    },
+    'gradient_cosmic': {
+        'id': 'gradient_cosmic',
+        'nom': 'Cosmos Léger',
+        'gradient': 'linear-gradient(135deg, #F3E5F5 0%, #CE93D8 100%)',
+        'prix': 5000,
+        'description': 'Fond cosmique délicat'
+    },
+    'gradient_ocean': {
+        'id': 'gradient_ocean',
+        'nom': 'Océan Léger',
+        'gradient': 'linear-gradient(135deg, #E1F5FE 0%, #81D4FA 100%)',
+        'prix': 5000,
+        'description': 'Fond océan frais'
+    },
+    'gradient_fire': {
+        'id': 'gradient_fire',
+        'nom': 'Feu Doux',
+        'gradient': 'linear-gradient(135deg, #FFF3E0 0%, #FFB74D 100%)',
+        'prix': 7500,
+        'description': 'Fond feu chaleureux'
+    },
+    'gradient_aurora': {
+        'id': 'gradient_aurora',
+        'nom': 'Aurore Légère',
+        'gradient': 'linear-gradient(135deg, #F0F4C3 0%, #81C784 100%)',
+        'prix': 10000,
+        'description': 'Fond aurore magique'
+    }
+}
+
+# Pouvoirs spéciaux disponibles dans la boutique
+POWERS = {
+    'time_freeze': {
+        'id': 'time_freeze',
+        'nom': '⏸️ Geler le Temps',
+        'emoji': '⏸️',
+        'prix': 300,
+        'description': 'Gèle le temps pendant 1 minute - utilise dans une partie pour arrêter le chrono!',
+        'duration_seconds': 60
+    }
+}
+
 # Émotes disponibles pour le mode Battle
 EMOTES = {
     'fire': {
@@ -537,6 +682,104 @@ EMOTES = {
         'emoji': '🎉',
         'prix': 200,
         'description': 'C\'est la fête'
+    },
+    'love': {
+        'id': 'love',
+        'nom': '❤️ Amour',
+        'emoji': '❤️',
+        'prix': 100,
+        'description': 'T\'es adorable'
+    },
+    'monster': {
+        'id': 'monster',
+        'nom': '👹 Monstre',
+        'emoji': '👹',
+        'prix': 150,
+        'description': 'Peur! Peur!'
+    },
+    'smile': {
+        'id': 'smile',
+        'nom': '😊 Sourire',
+        'emoji': '😊',
+        'prix': 50,
+        'description': 'Ça me plaît'
+    },
+    'angry': {
+        'id': 'angry',
+        'nom': '😠 Colère',
+        'emoji': '😠',
+        'prix': 100,
+        'description': 'Furieux!'
+    },
+    'skull': {
+        'id': 'skull',
+        'nom': '💀 Mort',
+        'emoji': '💀',
+        'prix': 150,
+        'description': 'Raté!'
+    },
+    'clap': {
+        'id': 'clap',
+        'nom': '👏 Applaudissements',
+        'emoji': '👏',
+        'prix': 75,
+        'description': 'Bravo!'
+    },
+    'victory': {
+        'id': 'victory',
+        'nom': '✌️ Victoire',
+        'emoji': '✌️',
+        'prix': 100,
+        'description': 'Youpi!'
+    },
+    'sweat': {
+        'id': 'sweat',
+        'nom': '😅 Sueur',
+        'emoji': '😅',
+        'prix': 75,
+        'description': 'C\'est difficile!'
+    },
+    'eyes': {
+        'id': 'eyes',
+        'nom': '👀 Yeux',
+        'emoji': '👀',
+        'prix': 50,
+        'description': 'Je regarde...'
+    },
+    'pray': {
+        'id': 'pray',
+        'nom': '🙏 Prière',
+        'emoji': '🙏',
+        'prix': 100,
+        'description': 'Aide-moi!'
+    },
+    'diamond': {
+        'id': 'diamond',
+        'nom': '💎 Diamant',
+        'emoji': '💎',
+        'prix': 200,
+        'description': 'Précieux!'
+    },
+    'crown': {
+        'id': 'crown',
+        'nom': '👑 Couronne',
+        'emoji': '👑',
+        'prix': 250,
+        'description': 'Je suis le roi!'
+    },
+    'ghost': {
+        'id': 'ghost',
+        'nom': '👻 Fantôme',
+        'emoji': '👻',
+        'prix': 150,
+        'description': 'Boo!'
+    },
+    'alien': {
+        'id': 'alien',
+        'nom': '👽 Alien',
+        'emoji': '👽',
+        'prix': 175,
+        'description': 'Bizarre!'
     }
 }
 
@@ -665,14 +908,22 @@ def start_game():
     data = request.json or {}
     matiere = data.get('matiere', 'physique_thermo')
     timer_minutes = data.get('timer_minutes', 0)  # 0 = mode classique, 5 ou 10 = mode chronométré
-    mode = data.get('mode', 'single')  # 'single', 'mixed_category', 'mixed_all'
+    mode = data.get('mode', 'single')  # 'single', 'mixed_category', 'mixed_all', 'revision_category'
+    revision_category = data.get('revision_category', None)  # ex: 'physique' pour réviser toute la physique
 
     if matiere not in MATIERES and mode == 'single':
         return jsonify({'error': 'Matière invalide'}), 400
 
     # Charger les questions selon le mode demandé
     all_questions = []
-    if mode == 'mixed_all':
+    if mode == 'revision_category' and revision_category:
+        # Réviser une catégorie complète (ex: Physique = thermo + thermique)
+        if revision_category in CATEGORIES:
+            for m in CATEGORIES[revision_category]['matieres']:
+                all_questions.extend(charger_questions(m))
+        else:
+            return jsonify({'error': 'Catégorie invalide pour la révision'}), 400
+    elif mode == 'mixed_all':
         for m in MATIERES.keys():
             all_questions.extend(charger_questions(m))
     elif mode == 'mixed_category':
@@ -1239,6 +1490,77 @@ def equip_button_color():
         'message': f'Couleur {color_data["nom"]} équipée !',
         'couleur': color_data['couleur'],
         'couleur_hover': color_data['couleur_hover']
+    })
+
+@app.route('/api/shop/background_colors', methods=['GET'])
+@login_required
+def get_background_colors():
+    """Retourne la liste des couleurs de background disponibles."""
+    colors_with_status = []
+    
+    for color_id, color_data in BACKGROUND_COLORS.items():
+        colors_with_status.append({
+            'id': color_id,
+            'nom': color_data['nom'],
+            'gradient': color_data['gradient'],
+            'prix': color_data['prix'],
+            'description': color_data['description'],
+            'owned': current_user.owns_background_color(color_id),
+            'equipped': current_user.current_background_color == color_id
+        })
+    
+    return jsonify({'background_colors': colors_with_status})
+
+@app.route('/api/shop/buy_background_color', methods=['POST'])
+@login_required
+def buy_background_color():
+    """Achète une couleur de background."""
+    data = request.json or {}
+    color_id = data.get('color_id')
+    
+    if not color_id or color_id not in BACKGROUND_COLORS:
+        return jsonify({'error': 'Couleur invalide'}), 400
+    
+    color_data = BACKGROUND_COLORS[color_id]
+    
+    if current_user.owns_background_color(color_id):
+        return jsonify({'error': 'Vous possédez déjà cette couleur'}), 400
+    
+    if current_user.total_score < color_data['prix']:
+        return jsonify({'error': f'Points insuffisants ! Il vous faut {color_data["prix"]} points'}), 400
+    
+    if current_user.buy_background_color(color_id, color_data['prix']):
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': f'Couleur {color_data["nom"]} achetée !',
+            'new_score': current_user.total_score
+        })
+    
+    return jsonify({'error': 'Erreur lors de l\'achat'}), 400
+
+@app.route('/api/shop/equip_background_color', methods=['POST'])
+@login_required
+def equip_background_color():
+    """Équipe une couleur de background."""
+    data = request.json or {}
+    color_id = data.get('color_id')
+    
+    if not color_id or color_id not in BACKGROUND_COLORS:
+        return jsonify({'error': 'Couleur invalide'}), 400
+    
+    if not current_user.owns_background_color(color_id):
+        return jsonify({'error': 'Vous ne possédez pas cette couleur'}), 400
+    
+    current_user.current_background_color = color_id
+    db.session.commit()
+    
+    color_data = BACKGROUND_COLORS[color_id]
+    
+    return jsonify({
+        'success': True,
+        'message': f'Fond {color_data["nom"]} équipé !',
+        'gradient': color_data['gradient']
     })
 
 @app.route('/api/shop/emotes', methods=['GET'])
