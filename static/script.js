@@ -203,16 +203,19 @@ async function checkAuth() {
 }
 
 function applyBackgroundColor(gradient) {
-    // Appliquer le gradient de fond d'écran au game-area
-    const gameArea = document.getElementById('game-screen');
-    if (gameArea) {
-        gameArea.style.background = gradient;
+    // Appliquer le gradient de fond d'écran à la div question-card
+    let styleElement = document.getElementById('custom-background-style');
+    if (!styleElement) {
+        styleElement = document.createElement('style');
+        styleElement.id = 'custom-background-style';
+        document.head.appendChild(styleElement);
     }
-    // Aussi appliquer au screen de bataille
-    const battleArea = document.getElementById('battle-screen');
-    if (battleArea) {
-        battleArea.style.background = gradient;
-    }
+    
+    styleElement.textContent = `
+        .question-card {
+            background: ${gradient} !important;
+        }
+    `;
 }
 
 async function handleLogout() {
