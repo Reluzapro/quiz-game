@@ -203,7 +203,7 @@ async function checkAuth() {
 }
 
 function applyBackgroundColor(gradient) {
-    // Appliquer le gradient de fond d'écran à la div question-card
+    // Appliquer le gradient de fond d'écran à plusieurs éléments
     let styleElement = document.getElementById('custom-background-style');
     if (!styleElement) {
         styleElement = document.createElement('style');
@@ -213,6 +213,15 @@ function applyBackgroundColor(gradient) {
     
     styleElement.textContent = `
         .question-card {
+            background: ${gradient} !important;
+        }
+        .answer-text {
+            background: ${gradient} !important;
+        }
+        .header {
+            background: ${gradient} !important;
+        }
+        .card {
             background: ${gradient} !important;
         }
     `;
