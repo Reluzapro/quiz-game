@@ -940,6 +940,13 @@ EMOTES = {
         'emoji': '🐌',
         'prix': 100,
         'description': 'Très lent!'
+    },
+    'poop': {
+        'id': 'poop',
+        'nom': '💩 Caca',
+        'emoji': '💩',
+        'prix': 1000,
+        'description': 'C\'est dégueulasse!'
     }
 }
 
