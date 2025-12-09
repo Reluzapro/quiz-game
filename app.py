@@ -317,7 +317,27 @@ with app.app_context():
         else:
             print("✅ Colonne is_public existe déjà")
     except Exception as e:
-        print(f"⚠️ Erreur lors de la migration: {e}")
+        print(f"⚠️ Erreur lors de la migration is_public: {e}")
+    
+    # Migration: Ajouter la colonne current_background_color si elle n'existe pas
+    try:
+        from sqlalchemy import text, inspect
+        inspector = inspect(db.engine)
+        user_columns = [col['name'] for col in inspector.get_columns('user')]
+        
+        if 'current_background_color' not in user_columns:
+            print("🔨 Migration: Ajout de la colonne current_background_color...")
+            with db.engine.connect() as conn:
+                conn.execute(text("""
+                    ALTER TABLE "user" 
+                    ADD COLUMN current_background_color VARCHAR(50) DEFAULT 'default'
+                """))
+                conn.commit()
+                print("✅ Colonne current_background_color ajoutée avec succès!")
+        else:
+            print("✅ Colonne current_background_color existe déjà")
+    except Exception as e:
+        print(f"⚠️ Erreur lors de la migration current_background_color: {e}")
 
 # Mapping pour compatibilité avec ancien code 'thermo' -> 'physique_thermo'
 MATIERE_ALIASES = {
