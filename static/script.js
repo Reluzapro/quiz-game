@@ -537,6 +537,7 @@ async function markGameCompleted() {
 }
 
 function restartGame() {
+    isMixedPhysique = false; // Reset le mode mélangé quand on retourne au menu
     showScreen('home-screen');
 }
 
