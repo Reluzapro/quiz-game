@@ -4,6 +4,7 @@ let timerInterval = null;
 let timerEnabled = false;
 let currentScoreTab = 'single'; // Type de score affiché: 'single' ou 'total'
 let userHintsCount = 0; // Nombre d'indices de l'utilisateur
+let isMixedPhysique = false; // Mode physique mélangé (thermo + thermique)
 // Durée en ms entre question/réponse et chargement de la suivante
 const QUESTION_TRANSITION_DELAY = 600; // réduit par rapport à 1500ms
 
@@ -27,11 +28,13 @@ async function loadMatieres() {
         container.innerHTML = '';
         
         let isFirst = true;
+        let physiqueCategory = null;
         
         // Créer les boutons pour chaque catégorie
         data.categories.forEach(categorie => {
             if (categorie.has_subcategories) {
                 // Catégorie avec sous-catégories (ex: Physique)
+                physiqueCategory = categorie; // Sauvegarder pour ajout du bouton mélange
                 const categoryDiv = document.createElement('div');
                 categoryDiv.className = 'category-group';
                 
@@ -61,6 +64,17 @@ async function loadMatieres() {
                         isFirst = false;
                     }
                 });
+                
+                // Ajouter un bouton spécial pour mélanger les physiques
+                const mixButton = document.createElement('button');
+                mixButton.className = 'btn-matiere btn-mixed-physique';
+                mixButton.id = 'btn-mixed-physique';
+                mixButton.onclick = () => selectMixedPhysique();
+                mixButton.innerHTML = `
+                    <div class="matiere-emoji">🔀</div>
+                    <div class="matiere-name">Mélangé</div>
+                `;
+                subcategoriesDiv.appendChild(mixButton);
                 
                 categoryDiv.appendChild(subcategoriesDiv);
                 container.appendChild(categoryDiv);
@@ -100,6 +114,24 @@ function selectMatiere(matiere) {
     document.getElementById(`btn-${matiere}`).classList.add('active');
     
     // Recharger les sauvegardes et stats pour cette matière
+    checkSavedGame();
+    loadStats();
+}
+
+function selectMixedPhysique() {
+    isMixedPhysique = true;
+    currentMatiere = null; // Aucune matière spécifique en mode mélangé
+    
+    // Mettre à jour l'interface
+    document.querySelectorAll('.btn-matiere').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    const mixBtn = document.getElementById('btn-mixed-physique');
+    if (mixBtn) {
+        mixBtn.classList.add('active');
+    }
+    
+    // Recharger les sauvegardes et stats pour le mode mélangé
     checkSavedGame();
     loadStats();
 }
@@ -219,15 +251,24 @@ async function startGame(matiere = null, timerMinutes = 0) {
             }
         }
         
+        // Préparer les paramètres pour la requête
+        const requestBody = { 
+            matiere: currentMatiere,
+            timer_minutes: timerMinutes
+        };
+        
+        // Si mode mélangé physique, ajouter le paramètre
+        if (isMixedPhysique) {
+            requestBody.mode = 'mixed_category';
+            requestBody.category = 'physique';
+        }
+        
         const response = await fetch('/api/start', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ 
-                matiere: currentMatiere,
-                timer_minutes: timerMinutes
-            })
+            body: JSON.stringify(requestBody)
         });
         
         const data = await response.json();
@@ -1650,11 +1691,133 @@ async function buyEmote(emoteId, prix) {
     }
 }
 
+// ==================== BACKGROUND COLORS ====================
+
+async function loadBackgroundColors() {
+    try {
+        const response = await fetch('/api/shop/background_colors', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        const backgroundsGrid = document.getElementById('background-colors-grid');
+        if (!backgroundsGrid) return; // Pas d'élément pour afficher
+        
+        backgroundsGrid.innerHTML = '';
+        
+        data.background_colors.forEach(color => {
+            const bgCard = document.createElement('div');
+            bgCard.className = 'theme-card';
+            
+            if (color.owned) {
+                bgCard.classList.add('owned');
+            }
+            if (color.equipped) {
+                bgCard.classList.add('equipped');
+            }
+            
+            let badge = '';
+            if (color.equipped) {
+                badge = '<span class="theme-badge equipped">✓ Équipé</span>';
+            } else if (color.owned) {
+                badge = '<span class="theme-badge owned">✓ Possédé</span>';
+            }
+            
+            let actionButtons = '';
+            if (color.equipped) {
+                actionButtons = '<button class="btn btn-secondary" disabled>Actuellement équipé</button>';
+            } else if (color.owned) {
+                actionButtons = `<button class="btn btn-primary" onclick="equipBackgroundColor('${color.id}')">Équiper</button>`;
+            } else {
+                actionButtons = `<button class="btn btn-success" onclick="buyBackgroundColor('${color.id}', ${color.prix})">Acheter (${color.prix} pts)</button>`;
+            }
+            
+            bgCard.innerHTML = `
+                <div class="theme-preview" style="background: ${color.gradient}; display:flex; align-items:center; justify-content:center;">
+                    ${badge}
+                </div>
+                <div class="theme-name">${color.nom}</div>
+                <div class="theme-description">${color.description}</div>
+                <div class="theme-actions">
+                    ${actionButtons}
+                </div>
+            `;
+            
+            backgroundsGrid.appendChild(bgCard);
+        });
+    } catch (error) {
+        console.error('Erreur chargement backgrounds:', error);
+    }
+}
+
+async function buyBackgroundColor(colorId, prix) {
+    const userPoints = parseInt(document.getElementById('user-points-display').textContent);
+    if (userPoints < prix) {
+        alert(`Pas assez de points ! Il vous faut ${prix} points (vous avez ${userPoints} pts)`);
+        return;
+    }
+    
+    if (!confirm(`Voulez-vous acheter ce fond pour ${prix} points ?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/shop/buy_background_color', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ color_id: colorId })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            alert(data.message);
+            showShop();
+        } else {
+            alert(data.error || 'Erreur lors de l\'achat');
+        }
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('Erreur lors de l\'achat du fond');
+    }
+}
+
+async function equipBackgroundColor(colorId) {
+    try {
+        const response = await fetch('/api/shop/equip_background_color', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ color_id: colorId })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            alert(data.message);
+            showShop();
+        } else {
+            alert(data.error || 'Erreur lors de l\'équipement');
+        }
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('Erreur lors de l\'équipement du fond');
+    }
+}
+
 // Mettre à jour la fonction showShop pour charger toutes les sections
 const originalShowShop = showShop;
 showShop = async function() {
     await originalShowShop();
     await loadButtonColors();
+    await loadBackgroundColors();
     await loadEmotes();
 };
 

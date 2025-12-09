@@ -930,6 +930,7 @@ def start_game():
     timer_minutes = data.get('timer_minutes', 0)  # 0 = mode classique, 5 ou 10 = mode chronométré
     mode = data.get('mode', 'single')  # 'single', 'mixed_category', 'mixed_all', 'revision_category'
     revision_category = data.get('revision_category', None)  # ex: 'physique' pour réviser toute la physique
+    category = data.get('category', None)  # ex: 'physique' pour mélanger toutes les matières de physique
 
     if matiere not in MATIERES and mode == 'single':
         return jsonify({'error': 'Matière invalide'}), 400
@@ -947,10 +948,10 @@ def start_game():
         for m in MATIERES.keys():
             all_questions.extend(charger_questions(m))
     elif mode == 'mixed_category':
-        normalized = normalize_matiere(matiere)
-        cat = MATIERES.get(normalized, {}).get('categorie')
-        if cat and cat in CATEGORIES:
-            for m in CATEGORIES[cat]['matieres']:
+        # Mélanger toutes les matières d'une catégorie (ex: physique_thermo + physique_thermique)
+        target_category = category if category else MATIERES.get(normalize_matiere(matiere), {}).get('categorie')
+        if target_category and target_category in CATEGORIES:
+            for m in CATEGORIES[target_category]['matieres']:
                 all_questions.extend(charger_questions(m))
         else:
             all_questions = charger_questions(matiere)
