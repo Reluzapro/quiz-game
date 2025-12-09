@@ -1890,17 +1890,29 @@ def generate_battle_code():
 def create_battle():
     """Crée une nouvelle bataille et retourne le code."""
     data = request.json or {}
-    matiere = data.get('matiere', 'thermo')
+    matiere = data.get('matiere')
     
-    if matiere not in MATIERES:
-        return jsonify({'error': 'Matière invalide'}), 400
+    if not matiere or matiere not in MATIERES:
+        return jsonify({'error': 'Matière invalide - veuillez en choisir une'}), 400
+    
+    # Charger les questions de la matière choisie
+    questions = charger_questions(matiere)
+    if not questions:
+        return jsonify({'error': 'Aucune question trouvée pour cette matière'}), 400
     
     # Créer une nouvelle battle
     code = generate_battle_code()
+    questions_json = json.dumps([{
+        'question': q['question'],
+        'bonne_reponse': q['bonne_reponse'],
+        'mauvaises_reponses': q['mauvaises_reponses']
+    } for q in questions])
+    
     battle = Battle(
         code=code,
         matiere=matiere,
-        player1_id=current_user.id
+        player1_id=current_user.id,
+        questions_data=questions_json
     )
     db.session.add(battle)
     db.session.commit()
@@ -1908,7 +1920,10 @@ def create_battle():
     return jsonify({
         'success': True,
         'code': code,
-        'battle_id': battle.id
+        'battle_id': battle.id,
+        'matiere': matiere,
+        'matiere_nom': MATIERES[matiere]['nom'],
+        'total_questions': len(questions)
     })
 
 @app.route('/api/battle/join/<code>', methods=['POST'])
@@ -2156,6 +2171,29 @@ def handle_battle_end(data):
             battle.status = 'finished'
             battle.end_time = datetime.utcnow()
             
+            # Déterminer le gagnant et appliquer les points
+            winner = None
+            loser = None
+            if battle.player1_score > battle.player2_score:
+                winner = battle.player1
+                loser = battle.player2
+                winner_msg = battle.player1.username
+            elif battle.player2_score > battle.player1_score:
+                winner = battle.player2
+                loser = battle.player1
+                winner_msg = battle.player2.username
+            else:
+                winner_msg = 'Égalité'
+                winner = None
+                loser = None
+            
+            # Appliquer les modifications de points globaux
+            if winner and loser:
+                # Gagnant gagne 50 points en plus
+                winner.add_score(50)
+                # Perdant perd 50 points (minimum 0)
+                loser.add_score(-50)
+            
             # Ajouter les scores au score total des joueurs
             if battle.player1:
                 battle.player1.add_score(battle.player1_score)
@@ -2191,21 +2229,12 @@ def handle_battle_end(data):
             
             db.session.commit()
             
-            # Déterminer le gagnant
-            winner = None
-            if battle.player1_score > battle.player2_score:
-                winner = battle.player1.username
-            elif battle.player2_score > battle.player1_score:
-                winner = battle.player2.username
-            else:
-                winner = 'Égalité'
-            
             emit('battle_finished', {
                 'player1_name': battle.player1.username,
                 'player2_name': battle.player2.username if battle.player2 else 'Aucun',
                 'player1_score': battle.player1_score,
                 'player2_score': battle.player2_score,
-                'winner': winner
+                'winner': winner_msg
             }, room=f'battle_{battle_id}')
 
 @socketio.on('send_emote')
