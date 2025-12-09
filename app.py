@@ -1002,12 +1002,20 @@ def start_game():
     mode_str = f"{timer_minutes} min" if timer_minutes > 0 else "classique"
     print(f"Jeu démarré: {len(questions)} questions, Mode: {mode} ({mode_str}), ID: {game_id}, Joueur: {current_user.username}")
     
+    # Déterminer le nom et emoji à afficher
+    if mode == 'mixed_category' and category and category in CATEGORIES:
+        matiere_nom = f"{CATEGORIES[category]['nom']} (Mélangé)"
+        matiere_emoji = f"{CATEGORIES[category]['emoji']}"
+    else:
+        matiere_nom = MATIERES.get(matiere, {}).get('nom', 'Jeu')
+        matiere_emoji = MATIERES.get(matiere, {}).get('emoji', '📚')
+    
     return jsonify({
         'success': True,
         'total_questions': len(questions),
         'matiere': matiere,
-        'matiere_nom': MATIERES[matiere]['nom'],
-        'matiere_emoji': MATIERES[matiere]['emoji'],
+        'matiere_nom': matiere_nom,
+        'matiere_emoji': matiere_emoji,
         'timer_minutes': timer_minutes
     })
 

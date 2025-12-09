@@ -106,6 +106,7 @@ async function loadMatieres() {
 
 function selectMatiere(matiere) {
     currentMatiere = matiere;
+    isMixedPhysique = false; // Reset le mode mélangé quand on sélectionne une autre matière
     
     // Mettre à jour l'interface
     document.querySelectorAll('.btn-matiere').forEach(btn => {
@@ -120,7 +121,8 @@ function selectMatiere(matiere) {
 
 function selectMixedPhysique() {
     isMixedPhysique = true;
-    currentMatiere = null; // Aucune matière spécifique en mode mélangé
+    // Garder une matière de physique comme référence (pour les stats, etc.)
+    currentMatiere = 'physique_thermo';
     
     // Mettre à jour l'interface
     document.querySelectorAll('.btn-matiere').forEach(btn => {
