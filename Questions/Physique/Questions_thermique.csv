@@ -1,0 +1,16 @@
+Quelle est l'unité SI de la Puissance thermique $\Phi$?;W;J;$\text{W} \cdot \text{m}^{-2}$;$K$
+Quelle est l'expression de la variation de la quantité de chaleur $\delta Q$?;$\Phi dt$;$\frac{dH}{dt}$;$\lambda \text{ grad}(T)$;$h S dt$
+Quelle est la définition d'un champ uniforme?;même valeur en tout point de l'espace;valeur qui change en fonction de $x$;grandeur qui possède une valeur définie en chaque point;champ dont le gradient est nul
+Quelle est l'unité de la Densité de courant thermique $j_q$?;$\text{W} \cdot \text{m}^{-2}$;W;$\text{J} \cdot \text{m}^{-2}$;$\text{W} \cdot \text{K}^{-1} \text{m}^{-2}$
+Comment est reliée la Puissance thermique $\Phi$ au flux de la densité de courant thermique $j_q$? ;$\Phi = \iint j_q \cdot \vec{n} \text{ d}S$;$\Phi = j_q \cdot S$;$\Phi = -\lambda \frac{dT}{dr}$;$\Phi = \text{grad}(T) \cdot \lambda$
+Dans la loi $j_q = -\lambda \text{ grad}(T)$, que représente $\lambda$?;conductivité thermique;coefficient de convection;résistance thermique;densité de courant thermique
+Exprimez $j_q$ en fonction du gradient;$j_q = -\lambda \text{ grad}(T)$;$j_q = -\lambda \text{ grad}(t)$;$j_q = \lambda \text{ grad}(T)$;$j_q = -\lambda \T$
+Quel est le format du vecteur radial $\vec{u_r}$ dans les coordonnées?;vecteur radial;vecteur cartésien;vecteur sphérique;vecteur tangentiel
+Dans un régime stationnaire, comment s'écrit la dérivée partielle par rapport au temps?;$\frac{\partial}{\partial t} = 0$;$\frac{\partial H}{\partial t} = 0$;$\frac{dH}{dt} = \Phi$;$T(x,t) = T(x)$
+Quel est le nom de l'opérateur $\vec{\nabla}$ mentionné dans les notes?;NABLA;Laplacien;Gradient;Divergence
+En régime quasi stationnaire avec matériau passif, que peut-on dire du flux $\Phi$? ;$\Phi$ indépendant de $x$;$\Phi$ varie selon $x$;$\Phi = 0$;$\Phi$ varie selon $t$
+Quelle est la formule de la résistance thermique axiale $R_{th}$ selon la conduction?;$\frac{e}{\lambda S}$;$\frac{\lambda S}{e}$;$h S$;$\frac{1}{h S}$
+Quel est le coefficient de convection $h$ donné pour la convection naturelle sol/eau?;$100 \text{ W} \cdot \text{K}^{-1} \text{m}^{-2}$;$10 \text{ W} \cdot \text{K}^{-1} \text{m}^{-2}$;$1 \text{ W} \cdot \text{K}^{-1} \text{m}^{-2}$;$1000 \text{ W} \cdot \text{K}^{-1} \text{m}^{-2}$
+Comment est définie la relation pour des résistances thermiques en dérivation?;$\frac{1}{R_{th\text{tot}}} = \frac{1}{R_1} + \frac{1}{R_2} ...$;$R_{th\text{tot}} = R_1 + R_2 ...$;$R_{th\text{tot}} = \frac{R_1 R_2}{R_1 + R_2}$;$R_{th\text{tot}} = \frac{1}{R_1} \cdot \frac{1}{R_2}$
+Dans le cas de convection, comment est exprimée la puissance $\Phi$ en fonction de $h$ et des températures?;$\Phi = h S (T_f - T_{sol})$;$\Phi = \frac{1}{h S} (T_f - T_{sol})$;$\Phi = \lambda S (T_f - T_{sol})$;$\Phi = h S (T_{sol} - T_f)$
+Quel est l'intervalle de valeurs typique mentionné pour le coefficient de convection $h$ en convection forcée?;entre 2 et 10;autour de 100;autour de 10;entre 0,1 et 1

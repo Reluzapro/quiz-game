@@ -64,7 +64,13 @@ MATIERES = {
     },
     'physique_thermo': {
         'nom': 'Thermodynamique',
-        'fichier': os.path.join('Questions', 'Physique', 'Questions.csv'),
+        'fichier': os.path.join('Questions', 'Physique', 'Questions_thermodynamique.csv'),
+        'emoji': '🔥',
+        'categorie': 'physique',  # Sous-catégorie de Physique
+    },
+    'physique_thermique': {
+        'nom': 'Thermique',
+        'fichier': os.path.join('Questions', 'Physique', 'Questions_thermique.csv'),
         'emoji': '🔥',
         'categorie': 'physique',  # Sous-catégorie de Physique
     },
@@ -82,7 +88,7 @@ MATIERES = {
     },
     'anglais': {
         'nom': 'Anglais',
-        'fichier': os.path.join('Questions', 'Anglais', 'Questions_anglais.csv'),
+        'fichier': os.path.join('Questions', 'Anglais', 'Questions_grammaire.csv'),
         'emoji': '🇬🇧',
         'categorie': None
     }
@@ -98,7 +104,7 @@ CATEGORIES = {
     'physique': {
         'nom': 'Physique',
         'emoji': '🔬',
-        'matieres': ['physique_thermo']  # Pour l'instant juste thermo, tu ajouteras d'autres plus tard
+        'matieres': ['physique_thermo', 'physique_thermique']  # Thermodynamique et Thermique
     },
     'meca': {
         'nom': 'Mécanique',
