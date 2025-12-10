@@ -1208,14 +1208,37 @@ def get_question():
     current_index = game['current_index']
     timer_minutes = game.get('timer_minutes', 0)
     
-    # Si on a fini toutes les questions et qu'on est en mode chrono, recommencer un cycle
+    # Si on a fini toutes les questions et qu'on est en mode chrono, recharger TOUTES les questions
     if current_index >= len(questions):
-        if timer_minutes > 0:
-            # Recommencer le cycle avec les mêmes questions
-            game['current_index'] = 0
-            game['reponses_restantes'] = []
-            current_index = 0
-            random.shuffle(questions)  # Mélanger pour varier
+        if game.get('timer_minutes', 0) > 0:
+            # Recharger TOUTES les questions de la matière (même celles réussies)
+            matiere = game.get('matiere')
+            mode = game.get('mode', 'single')
+            category = game.get('category', None)
+            
+            # Recharger selon le mode
+            if mode == 'mixed_category' and category and category in CATEGORIES:
+                all_new_questions = []
+                for m in CATEGORIES[category]['matieres']:
+                    all_new_questions.extend(charger_questions(m))
+            elif mode == 'mixed_all':
+                all_new_questions = []
+                for m in MATIERES.keys():
+                    all_new_questions.extend(charger_questions(m))
+            else:
+                all_new_questions = charger_questions(matiere)
+            
+            # Mélanger et recommencer
+            if all_new_questions:
+                random.shuffle(all_new_questions)
+                game['questions'] = all_new_questions
+                game['current_index'] = 0
+                game['reponses_restantes'] = []
+                current_index = 0
+                questions = all_new_questions
+            else:
+                # Pas de questions disponibles, fin de la partie
+                return jsonify({'finished': True, 'score': game['score'], 'has_revision': False})
         else:
             # Mode classique: montrer l'écran de fin
             questions_a_reviser = game.get('questions_a_reviser', [])
@@ -2336,7 +2359,7 @@ def handle_answer(data):
 
 @socketio.on('battle_end')
 def handle_battle_end(data):
-    """Un joueur a terminé sa partie."""
+    """Un joueur a terminé sa partie ou le temps est écoulé."""
     battle_id = data.get('battle_id')
     
     if not battle_id or not current_user.is_authenticated:
@@ -2346,78 +2369,76 @@ def handle_battle_end(data):
     if not battle:
         return
     
-    # Vérifier si le temps est écoulé pour tout le monde
-    if battle.start_time:
-        elapsed = (datetime.utcnow() - battle.start_time).total_seconds()
-        if elapsed >= 300:  # 5 minutes
-            battle.status = 'finished'
-            battle.end_time = datetime.utcnow()
-            
-            # Déterminer le gagnant et appliquer les points
+    # Marquer la bataille comme terminée
+    if battle.status != 'finished':
+        battle.status = 'finished'
+        battle.end_time = datetime.utcnow()
+        
+        # Déterminer le gagnant et appliquer les points
+        winner = None
+        loser = None
+        if battle.player1_score > battle.player2_score:
+            winner = battle.player1
+            loser = battle.player2
+            winner_msg = battle.player1.username
+        elif battle.player2_score > battle.player1_score:
+            winner = battle.player2
+            loser = battle.player1
+            winner_msg = battle.player2.username
+        else:
+            winner_msg = 'Égalité'
             winner = None
             loser = None
-            if battle.player1_score > battle.player2_score:
-                winner = battle.player1
-                loser = battle.player2
-                winner_msg = battle.player1.username
-            elif battle.player2_score > battle.player1_score:
-                winner = battle.player2
-                loser = battle.player1
-                winner_msg = battle.player2.username
-            else:
-                winner_msg = 'Égalité'
-                winner = None
-                loser = None
-            
-            # Appliquer les modifications de points globaux
-            if winner and loser:
-                # Gagnant gagne 50 points en plus
-                winner.add_score(50)
-                # Perdant perd 50 points (minimum 0)
-                loser.add_score(-50)
-            
-            # Ajouter les scores au score total des joueurs
-            if battle.player1:
-                battle.player1.add_score(battle.player1_score)
-            if battle.player2:
-                battle.player2.add_score(battle.player2_score)
-            
-            # Sauvegarder les parties Battle dans l'historique
-            if battle.player1:
-                battle_game1 = SavedGame(
-                    user_id=battle.player1_id,
-                    matiere=battle.matiere,
-                    game_data=json.dumps({'battle_id': battle.id}),
-                    score=battle.player1_score,
-                    total_questions=0,
-                    questions_correctes=0,
-                    is_completed=True,
-                    duration_seconds=300  # 5 minutes
-                )
-                db.session.add(battle_game1)
-            
-            if battle.player2:
-                battle_game2 = SavedGame(
-                    user_id=battle.player2_id,
-                    matiere=battle.matiere,
-                    game_data=json.dumps({'battle_id': battle.id}),
-                    score=battle.player2_score,
-                    total_questions=0,
-                    questions_correctes=0,
-                    is_completed=True,
-                    duration_seconds=300  # 5 minutes
-                )
-                db.session.add(battle_game2)
-            
-            db.session.commit()
-            
-            emit('battle_finished', {
-                'player1_name': battle.player1.username,
-                'player2_name': battle.player2.username if battle.player2 else 'Aucun',
-                'player1_score': battle.player1_score,
-                'player2_score': battle.player2_score,
-                'winner': winner_msg
-            }, room=f'battle_{battle_id}')
+        
+        # Appliquer les modifications de points globaux
+        if winner and loser:
+            # Gagnant gagne 50 points en plus
+            winner.add_score(50)
+            # Perdant perd 50 points (minimum 0)
+            loser.add_score(-50)
+        
+        # Ajouter les scores au score total des joueurs
+        if battle.player1:
+            battle.player1.add_score(battle.player1_score)
+        if battle.player2:
+            battle.player2.add_score(battle.player2_score)
+        
+        # Sauvegarder les parties Battle dans l'historique
+        if battle.player1:
+            battle_game1 = SavedGame(
+                user_id=battle.player1_id,
+                matiere=battle.matiere,
+                game_data=json.dumps({'battle_id': battle.id}),
+                score=battle.player1_score,
+                total_questions=0,
+                questions_correctes=0,
+                is_completed=True,
+                duration_seconds=300  # 5 minutes
+            )
+            db.session.add(battle_game1)
+        
+        if battle.player2:
+            battle_game2 = SavedGame(
+                user_id=battle.player2_id,
+                matiere=battle.matiere,
+                game_data=json.dumps({'battle_id': battle.id}),
+                score=battle.player2_score,
+                total_questions=0,
+                questions_correctes=0,
+                is_completed=True,
+                duration_seconds=300  # 5 minutes
+            )
+            db.session.add(battle_game2)
+        
+        db.session.commit()
+        
+        emit('battle_finished', {
+            'player1_name': battle.player1.username,
+            'player2_name': battle.player2.username if battle.player2 else 'Aucun',
+            'player1_score': battle.player1_score,
+            'player2_score': battle.player2_score,
+            'winner': winner_msg
+        }, room=f'battle_{battle_id}')
 
 @socketio.on('send_emote')
 def handle_send_emote(data):

@@ -490,7 +490,12 @@ async function submitAnswer(answer) {
             messageDiv.classList.add('success');
         } else if (data.points < 0) {
             messageDiv.classList.add('error');
-            messageDiv.textContent += `\n\nLa bonne réponse était: ${data.bonne_reponse}`;
+            // Utiliser innerHTML pour la bonne réponse et ajouter MathJax
+            messageDiv.innerHTML = `${data.message}<br><br><strong>La bonne réponse était:</strong> ${data.bonne_reponse}`;
+            // Rendre MathJax pour la bonne réponse
+            if (typeof MathJax !== 'undefined' && MathJax.typesetPromise) {
+                MathJax.typesetPromise([messageDiv]).catch((err) => console.error('Erreur MathJax:', err));
+            }
         } else {
             messageDiv.classList.add('info');
         }
@@ -1090,6 +1095,10 @@ function startBattleTimer() {
         
         if (remaining === 0) {
             clearInterval(battleTimer);
+            // Désactiver les boutons pour éviter plus de soumission
+            document.getElementById('battle-buttons').style.pointerEvents = 'none';
+            document.getElementById('battle-buttons').style.opacity = '0.5';
+            // Envoyer la fin de battle au serveur
             socket.emit('battle_end', { battle_id: currentBattle.id });
         }
     }, 1000);
@@ -1154,6 +1163,12 @@ async function submitBattleAnswer(answer) {
             messageDiv.classList.add('success');
         } else if (data.points < 0) {
             messageDiv.classList.add('error');
+            // Afficher la bonne réponse avec MathJax
+            messageDiv.innerHTML = `${data.message}<br><br><strong>La bonne réponse était:</strong> ${data.bonne_reponse}`;
+            // Rendre MathJax pour la bonne réponse
+            if (typeof MathJax !== 'undefined' && MathJax.typesetPromise) {
+                MathJax.typesetPromise([messageDiv]).catch((err) => console.error('Erreur MathJax:', err));
+            }
         } else {
             messageDiv.classList.add('info');
         }
