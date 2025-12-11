@@ -1063,7 +1063,8 @@ async function startBattleGame() {
         },
         body: JSON.stringify({ 
             matiere: currentMatiere,
-            timer_minutes: 5
+            timer_minutes: 5,
+            battle_id: currentBattle.id
         })
     });
     

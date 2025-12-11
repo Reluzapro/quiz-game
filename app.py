@@ -1084,6 +1084,7 @@ def start_game():
     mode = data.get('mode', 'single')  # 'single', 'mixed_category', 'mixed_all', 'revision_category'
     revision_category = data.get('revision_category', None)  # ex: 'physique' pour réviser toute la physique
     category = data.get('category', None)  # ex: 'physique' pour mélanger toutes les matières de physique
+    battle_id = data.get('battle_id', None)  # optionnel: ID de la battle si c'est une partie battle
 
     if matiere not in MATIERES and mode == 'single':
         return jsonify({'error': 'Matière invalide'}), 400
@@ -1147,7 +1148,8 @@ def start_game():
         'questions_a_reviser': [],
         'timer_minutes': timer_minutes,
         'start_time': start_time,
-        'mode': mode
+        'mode': mode,
+        'battle_id': battle_id
     }
 
     session['game_id'] = game_id
@@ -1410,6 +1412,25 @@ def submit_answer():
     
     game['score'] = score
     result['score'] = score
+    
+    # Si c'est une battle, mettre à jour les scores et notifier les deux joueurs
+    if 'battle_id' in game:
+        battle_id = game['battle_id']
+        battle = Battle.query.get(battle_id)
+        if battle:
+            # Déterminer quel joueur a répondu et mettre à jour son score
+            if current_user.id == battle.player1_id:
+                battle.player1_score = score
+            elif current_user.id == battle.player2_id:
+                battle.player2_score = score
+            
+            db.session.commit()
+            
+            # Émettre les scores mis à jour à TOUS les joueurs de la battle
+            socketio.emit('scores_update', {
+                'player1_score': battle.player1_score,
+                'player2_score': battle.player2_score
+            }, room=f'battle_{battle_id}')
     
     return jsonify(result)
 
